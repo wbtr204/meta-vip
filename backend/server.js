@@ -36,18 +36,19 @@ app.use(
         contentSecurityPolicy: {
             directives: {
                 defaultSrc: ["'self'"],
-                scriptSrc: ["'self'", "'unsafe-inline'"],
+                scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
                 styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
                 fontSrc: ["'self'", "https://fonts.gstatic.com"],
                 imgSrc: ["'self'", "data:", "https://res.cloudinary.com"],
                 connectSrc: ["'self'", "wss:", "https://res.cloudinary.com"],
             },
         },
+        crossOriginEmbedderPolicy: false,
     })
 );
 
 app.use(cors({
-    origin: process.env.NODE_ENV === "production" ? false : "http://localhost:3000",
+    origin: true, // Cho phép phản hồi theo origin của request để đảm bảo linh hoạt
     credentials: true,
 }));
 
