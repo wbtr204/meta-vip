@@ -39,7 +39,7 @@ app.use(
                 scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
                 styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
                 fontSrc: ["'self'", "https://fonts.gstatic.com"],
-                imgSrc: ["'self'", "data:", "https://res.cloudinary.com"],
+                imgSrc: ["'self'", "data:", "https://res.cloudinary.com", "https://avatars.githubusercontent.com", "https://cdn.jsdelivr.net"],
                 connectSrc: ["'self'", "wss:", "https://res.cloudinary.com"],
             },
         },
