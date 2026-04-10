@@ -7,7 +7,6 @@ import {
     Heart, 
     MessageCircle, 
     Repeat, 
-    Share2,
     Bookmark, 
     Trash2, 
     MoreHorizontal, 
@@ -17,14 +16,12 @@ import {
 
 import LoadingSpinner from "./LoadingSpinner";
 import ReactionBar from "./post/ReactionBar";
-import ShareMenu from "./post/ShareMenu";
 import CommentItem from "./post/CommentItem";
 import { formatPostDate } from "../../utils/date";
 
 
 const Post = memo(function Post({ post }) {
 	const [showReactions, setShowReactions] = useState(false);
-    const [showShareMenu, setShowShareMenu] = useState(false);
 	const [commentText, setCommentText] = useState("");
     const [replyTo, setReplyTo] = useState(null); 
 	const hoverTimeout = useRef(null);
@@ -39,9 +36,10 @@ const Post = memo(function Post({ post }) {
     const postOwner = displayPost?.user;
     const isFlagged = post.moderation?.status === "flagged";
     
-    const myReaction = post.reactions?.find(r => r.user === authUser?._id);
+    const myReaction = post.reactions?.find(r => r.user?.toString() === authUser?._id?.toString());
     const isLiked = !!myReaction;
     const isBookmarked = authUser?.bookmarks?.includes(post._id);
+    const formattedDate = formatPostDate(displayPost.createdAt);
 
     const handleHoverStart = useCallback(() => {
         hoverTimeout.current = setTimeout(() => setShowReactions(true), 400);
@@ -65,7 +63,7 @@ const Post = memo(function Post({ post }) {
 		},
 	});
 
-	const { mutate: reactPost } = useMutation({
+	const { mutate: reactPost, isPending: isReacting } = useMutation({
 		mutationFn: async (type) => {
 			const res = await fetch(`/api/posts/like/${post._id}`, { 
                 method: "POST",
@@ -78,7 +76,25 @@ const Post = memo(function Post({ post }) {
 		},
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["posts"] });
+            queryClient.invalidateQueries({ queryKey: ["post", post._id] });
 		},
+	});
+
+	const { mutate: deleteComment } = useMutation({
+		mutationFn: async (commentId) => {
+			const res = await fetch(`/api/posts/comment/${post._id}/${commentId}`, {
+				method: "DELETE",
+			});
+			const data = await res.json();
+			if (!res.ok) throw new Error(data.error || "Something went wrong");
+			return data;
+		},
+		onSuccess: () => {
+			toast.success("Bình luận đã được xóa");
+			queryClient.invalidateQueries({ queryKey: ["posts"] });
+            queryClient.invalidateQueries({ queryKey: ["post", post._id] });
+		},
+		onError: () => toast.error("Có lỗi xảy ra khi xóa"),
 	});
 
 	const { mutate: commentPost, isPending: isCommenting } = useMutation({
@@ -96,6 +112,7 @@ const Post = memo(function Post({ post }) {
 			setCommentText("");
             setReplyTo(null);
 			queryClient.invalidateQueries({ queryKey: ["posts"] });
+            queryClient.invalidateQueries({ queryKey: ["post", post._id] });
 		},
 		onError: () => toast.error("Bình luận thất bại"),
 	});
@@ -110,6 +127,7 @@ const Post = memo(function Post({ post }) {
 		onSuccess: () => {
 			toast.success("Hành động đã được thực hiện");
 			queryClient.invalidateQueries({ queryKey: ["posts"] });
+            queryClient.invalidateQueries({ queryKey: ["post", post._id] });
 		},
 	});
 
@@ -186,7 +204,7 @@ const Post = memo(function Post({ post }) {
 			initial={{ opacity: 0 }}
 			animate={{ opacity: 1 }}
 			transition={{ duration: 0.12, ease: "easeOut" }}
-			className='bg-white dark:bg-slate-900/60 rounded-2xl border border-slate-200/50 dark:border-slate-800/50 w-full mb-4 overflow-hidden relative'
+			className='bg-white dark:bg-slate-950 sm:dark:bg-slate-900/60 sm:rounded-2xl sm:border border-b border-slate-100 dark:border-slate-800/60 w-full sm:mb-4 overflow-hidden relative'
 		>
             <div className='p-4 sm:p-5'>
                 {/* Repost Header */}
@@ -221,7 +239,7 @@ const Post = memo(function Post({ post }) {
                                     {postOwner?.fullName}
                                 </Link>
                                 <span className='text-xs text-slate-500 font-medium'>
-                                    @{postOwner?.username} • {formatPostDate(displayPost.createdAt)}
+                                    @{postOwner?.username} • {formattedDate}
                                 </span>
                             </div>
                             
@@ -309,10 +327,11 @@ const Post = memo(function Post({ post }) {
                                 >
                                     <button 
                                         type="button"
-                                        className={`flex items-center gap-1.5 px-3 py-2 rounded-xl transition-all active:scale-95 ${
+                                        disabled={isReacting}
+                                        className={`flex items-center gap-1.5 px-3 py-2 rounded-xl transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed border-none outline-none shadow-none bg-transparent appearance-none ${
                                             isLiked ? "bg-red-500/10 text-red-500" : "text-slate-500 hover:text-red-500 hover:bg-red-500/10"
                                         }`}
-                                        onClick={() => !isLiked ? reactPost("like") : reactPost()}
+                                        onClick={() => reactPost(isLiked ? undefined : "like")}
                                         aria-label="Thích bài viết"
                                     >
                                         <Heart
@@ -330,7 +349,7 @@ const Post = memo(function Post({ post }) {
                                 
                                 <button 
                                     type="button"
-                                    className='flex items-center gap-1.5 px-3 py-2 rounded-xl text-slate-500 hover:text-blue-500 hover:bg-blue-500/10 transition-all active:scale-95' 
+                                    className='flex items-center gap-1.5 px-3 py-2 rounded-xl text-slate-500 hover:text-blue-500 hover:bg-blue-500/10 transition-all active:scale-95 border-none outline-none shadow-none bg-transparent appearance-none' 
                                     onClick={() => document.getElementById("comments_modal" + post._id).showModal()}
                                     aria-label="Bình luận bài viết"
                                 >
@@ -338,30 +357,17 @@ const Post = memo(function Post({ post }) {
                                     <span className='text-xs font-semibold tabular-nums'>{post.comments?.length || 0}</span>
                                 </button>
 
-                                <div className="relative">
-                                    <button 
-                                        type="button"
-                                        className={`flex items-center gap-1.5 px-3 py-2 rounded-xl transition-all active:scale-95 ${
-                                            displayPost.reposts?.length > 0 ? "bg-emerald-500/10 text-emerald-500" : "text-slate-500 hover:text-emerald-500 hover:bg-emerald-500/10"
-                                        }`}
-                                        onClick={() => setShowShareMenu(!showShareMenu)}
-                                        aria-label="Chia sẻ bài viết"
-                                    >
-                                        <Share2 size={20} />
-                                        <span className='text-xs font-semibold tabular-nums'>{displayPost.reposts?.length || 0}</span>
-                                    </button>
-                                    
-                                    <AnimatePresence>
-                                        {showShareMenu && (
-                                            <ShareMenu 
-                                                onRepost={repostPost}
-                                                onQuote={() => toast("Chức năng Trích dẫn đang được phát triển")}
-                                                postUrl={`${window.location.origin}/post/${post._id}`}
-                                                onClose={() => setShowShareMenu(false)}
-                                            />
-                                        )}
-                                    </AnimatePresence>
-                                </div>
+                                <button 
+                                    type="button"
+                                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl transition-all active:scale-95 border-none outline-none shadow-none bg-transparent appearance-none ${
+                                        displayPost.reposts?.length > 0 ? "bg-emerald-500/10 text-emerald-500" : "text-slate-500 hover:text-emerald-500 hover:bg-emerald-500/10"
+                                    }`}
+                                    onClick={() => repostPost()}
+                                    aria-label="Đăng lại bài viết"
+                                >
+                                    <Repeat size={20} />
+                                    <span className='text-xs font-semibold tabular-nums'>{displayPost.reposts?.length || 0}</span>
+                                </button>
                             </div>
                             
                             <button 
@@ -378,45 +384,83 @@ const Post = memo(function Post({ post }) {
                     </div>
                 </div>
             </div>
-			<dialog id={`comments_modal${post._id}`} className='modal backdrop-brightness-50'>
-				<div className='modal-box bg-white dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800/50 rounded-2xl p-0 max-w-xl shadow-2xl overflow-hidden'>
-					<div className="flex justify-between items-center px-6 py-4 border-b border-slate-100 dark:border-slate-800/50">
+			<dialog id={`comments_modal${post._id}`} className='modal modal-bottom sm:modal-middle backdrop-brightness-50'>
+				<div className='modal-box bg-white dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800/50 rounded-t-[2rem] sm:rounded-3xl p-0 max-w-xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[85vh]'>
+					<div className="flex justify-between items-center px-6 py-4 border-b border-slate-100 dark:border-slate-800/50 shrink-0">
 						<h3 className='font-bold text-lg text-slate-900 dark:text-slate-100 italic'>Cuộc hội thoại</h3>
 						<form method="dialog"><button className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"><Trash2 size={18} className="rotate-45" /></button></form>
 					</div>
+					
+					<div className='flex-1 flex flex-col overflow-y-auto custom-scrollbar relative bg-white dark:bg-slate-900'>
+                        {/* BÀI VIẾT GỐC LÀM NGỮ CẢNH */}
+                        <div className="flex gap-4 px-6 pt-6 pb-4 relative z-10 w-full">
+                            {post.comments?.length > 0 && (
+                                <div className="absolute left-[42px] top-16 bottom-0 w-[2px] bg-slate-100 dark:bg-slate-800 -z-10" />
+                            )}
+                            <div className="h-10 w-10 shadow-sm rounded-xl overflow-hidden shrink-0">
+                                <img src={postOwner?.profileImg || "/avatar-placeholder.png"} className="w-full h-full object-cover" />
+                            </div>
+                            <div className="flex-1 flex flex-col min-w-0 pb-2">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="font-bold text-sm text-slate-900 dark:text-slate-100">{postOwner?.fullName}</span>
+                                    <span className="text-[12px] text-slate-500 font-medium">@{postOwner?.username} • {formattedDate}</span>
+                                </div>
+                                <p className="text-sm text-slate-800 dark:text-slate-200 mt-1.5 leading-relaxed">{post.text}</p>
+                                {post.imgs && post.imgs.length > 0 && (
+                                    <img src={post.imgs[0]} className="mt-3 max-h-40 w-auto object-cover rounded-xl border border-slate-200 dark:border-slate-700" />
+                                )}
+                            </div>
+                        </div>
 
-					<div className='flex flex-col gap-6 max-h-[60vh] overflow-y-auto px-6 py-6 custom-scrollbar'>
-                        {post.comments
-                            .filter(c => !c.parentId) 
-                            .map((c) => (
-                                <CommentItem 
-                                    key={c._id} 
-                                    comment={c} 
-                                    allComments={post.comments} 
-                                    onReply={(c) => setReplyTo(c)}
-                                    authUser={authUser}
-                                />
-                            ))
-                        }
+                        {post.comments?.length > 0 && <div className="h-px bg-slate-100 dark:bg-slate-800/80 mx-6 mb-4 shrink-0" />}
+
+                        {/* DANH SÁCH BÌNH LUẬN */}
+                        <div className="flex flex-col gap-6 px-6 pb-6">
+                            {post.comments
+                                .filter(c => !c.parentId) 
+                                .map((c) => (
+                                    <CommentItem 
+                                        key={c._id} 
+                                        comment={c} 
+                                        allComments={post.comments} 
+                                        onReply={(c) => setReplyTo(c)}
+                                        onDelete={(id) => deleteComment(id)}
+                                        authUser={authUser}
+                                        postOwnerId={postOwner?._id}
+                                        postId={post._id}
+                                    />
+                                ))
+                            }
+                        </div>
 					</div>
 
-					<form className='p-4 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800/50 flex gap-3' onSubmit={handleCommentSubmit}>
-                        <div className="h-9 w-9 rounded-xl overflow-hidden shrink-0 border border-slate-200 dark:border-slate-700">
-                             <img src={authUser?.profileImg || "/avatar-placeholder.png"} className="w-full h-full object-cover" loading="lazy" />
+					<form className='p-4 bg-slate-50/80 dark:bg-slate-800/80 border-t border-slate-100 dark:border-slate-800/50 flex flex-col gap-3 shrink-0' onSubmit={handleCommentSubmit}>
+                        {replyTo && (
+                            <div className="flex justify-between items-center bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 text-[11px] font-bold px-3 py-1.5 rounded-lg w-fit ml-0 sm:ml-12">
+                                <span>Đang trả lời {replyTo.user?.fullName}</span>
+                                <button type="button" onClick={() => setReplyTo(null)} className="ml-2 hover:bg-black/10 dark:hover:bg-white/10 rounded-full p-0.5 transition-colors">
+                                    <Trash2 size={12} className="rotate-45" />
+                                </button>
+                            </div>
+                        )}
+                        <div className="flex gap-3 items-center">
+                            <div className="h-9 w-9 shadow-sm rounded-xl overflow-hidden shrink-0 border border-slate-200 dark:border-slate-700">
+                                 <img src={authUser?.profileImg || "/avatar-placeholder.png"} className="w-full h-full object-cover" loading="lazy" />
+                            </div>
+                            <input 
+                                className='flex-1 bg-white dark:bg-slate-900 border border-slate-200/50 dark:border-slate-700 rounded-xl py-2 px-4 text-sm text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500/30 focus:border-transparent outline-none transition-all shadow-sm' 
+                                placeholder={replyTo ? `Viết câu trả lời...` : 'Thêm bình luận của bạn...'} 
+                                value={commentText}
+                                onChange={(e) => setCommentText(e.target.value)}
+                            />
+                            <button 
+                                type="submit" 
+                                disabled={isCommenting || !commentText.trim()}
+                                className='bg-indigo-500 text-white px-5 py-2 rounded-xl font-bold text-sm hover:bg-indigo-600 transition-all disabled:opacity-50 disabled:hover:scale-100 shadow-md shadow-indigo-500/20 active:scale-95 flex items-center gap-2'
+                            >
+                                {isCommenting ? <LoadingSpinner size="xs" /> : <SendHorizonal size={16} />}
+                            </button>
                         </div>
-						<input 
-							className='flex-1 bg-white dark:bg-slate-800 border-none rounded-xl py-2 px-4 text-sm text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all' 
-							placeholder={replyTo ? `Trả lời ${replyTo.user?.fullName}...` : 'Viết suy nghĩ của bạn...'} 
-							value={commentText}
-							onChange={(e) => setCommentText(e.target.value)}
-						/>
-						<button 
-							type="submit" 
-							disabled={isCommenting || !commentText.trim()}
-							className='bg-indigo-500 text-white px-5 py-2 rounded-xl font-bold text-sm hover:bg-indigo-600 transition-colors disabled:opacity-50 shadow-md shadow-indigo-500/20 active:scale-95 flex items-center gap-2'
-						>
-							{isCommenting ? <LoadingSpinner size="xs" /> : <SendHorizonal size={16} />}
-						</button>
 					</form>
 				</div>
 				<form method='dialog' className='modal-backdrop bg-black/20'><button>close</button></form>

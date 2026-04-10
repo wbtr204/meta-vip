@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "react-hot-toast";
 import { 
@@ -50,10 +50,7 @@ const NotificationPage = () => {
 		},
 	});
 
-    // Mark all as read on mount
-    useEffect(() => {
-        markAsRead();
-    }, [markAsRead]);
+    // NO auto-mark-all - user controls when to mark as read
 
 	const { mutate: deleteReadNotifications } = useMutation({
 		mutationFn: async () => {
@@ -159,13 +156,22 @@ const NotificationPage = () => {
 
                         {/* Action Bar - Simplified to only Clear Read notifications */}
                         <div className="flex flex-wrap items-center gap-2">
+                            {unreadCount > 0 && (
+                                <button 
+                                    onClick={() => markAsRead()}
+                                    className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-indigo-600 text-white text-xs font-black uppercase tracking-widest hover:scale-105 transition-all active:scale-95 shadow-xl shadow-indigo-600/20"
+                                >
+                                    <EyeOff size={16} />
+                                    <span>Đánh dấu đã đọc ({unreadCount})</span>
+                                </button>
+                            )}
                             {readCount > 0 && (
                                 <button 
                                     onClick={() => deleteReadNotifications()}
                                     className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-black uppercase tracking-widest hover:scale-105 transition-all active:scale-95 shadow-xl shadow-slate-900/10"
                                 >
                                     <Trash2 size={16} />
-                                    <span>Dọn dẹp thông báo đã xem</span>
+                                    <span>Dọn dẹp đã xem</span>
                                 </button>
                             )}
                         </div>
@@ -192,7 +198,7 @@ const NotificationPage = () => {
             </div>
 
             {/* List Area */}
-            <div className="max-w-3xl mx-auto px-4 py-12">
+            <div className="max-w-3xl mx-auto px-0 sm:px-6 py-6 sm:py-12">
                 {isLoading && (
                     <div className="flex flex-col items-center justify-center py-20 gap-4">
                         <LoadingSpinner size="lg" />
@@ -206,7 +212,7 @@ const NotificationPage = () => {
                     <motion.div 
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="flex flex-col items-center justify-center py-24 text-center bg-slate-50/50 dark:bg-slate-900/10 rounded-[2rem] border-2 border-dashed border-slate-200 dark:border-slate-800"
+                        className="flex flex-col items-center justify-center py-24 text-center bg-slate-50/50 dark:bg-slate-900/10 sm:rounded-[2rem] rounded-none border-y-2 sm:border-2 border-dashed border-slate-200 dark:border-slate-800"
                     >
                         <div className="w-24 h-24 rounded-full bg-white dark:bg-slate-900 flex items-center justify-center text-slate-200 dark:text-slate-700 mb-8 border border-slate-100 dark:border-slate-800 shadow-sm">
                             <EyeOff size={40} />

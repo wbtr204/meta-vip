@@ -26,7 +26,7 @@ const CATEGORIES = [
 const breakpointColumnsObj = {
     default: 3,
     1100: 2,
-    700: 1,
+    700: 2, // 2 columns on mobile for better density
 };
 
 const ExplorePage = () => {
@@ -63,7 +63,7 @@ const ExplorePage = () => {
                 </div>
             </div>
 
-            <div className="p-4 sm:p-6">
+            <div className="p-1 sm:p-6">
                 {isLoading ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         <PostSkeleton />
@@ -73,8 +73,8 @@ const ExplorePage = () => {
                 ) : (
                     <Masonry
                         breakpointCols={breakpointColumnsObj}
-                        className="flex w-auto gap-6"
-                        columnClassName="bg-clip-padding flex flex-col gap-6"
+                        className="flex w-auto gap-1 sm:gap-6"
+                        columnClassName="bg-clip-padding flex flex-col gap-1 sm:gap-6"
                     >
                         {posts?.map((post, idx) => (
                             <motion.div
@@ -82,7 +82,7 @@ const ExplorePage = () => {
                                 initial={{ opacity: 0, scale: 0.98 }}
                                 animate={{ opacity: 1, scale: 1 }}
                                 transition={{ delay: idx * 0.02 }}
-                                className="group relative rounded-3xl overflow-hidden bg-slate-100 dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800/50 shadow-sm"
+                                className="group relative rounded-xl sm:rounded-3xl overflow-hidden bg-slate-100 dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800/50 shadow-sm"
                             >
                                 <Link to={`/post/${post._id}`}>
                                     <div className="relative aspect-auto">

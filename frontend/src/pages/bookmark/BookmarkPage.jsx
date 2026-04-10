@@ -20,7 +20,7 @@ const BookmarkPage = () => {
 	return (
 		<div className='flex-[4_4_0] border-r border-base-300 min-h-screen'>
 			<div className='flex flex-col'>
-				<div className='p-4 border-b border-base-300'>
+				<div className='p-4 px-4 sm:px-6 border-b border-base-300'>
 					<p className='font-bold text-lg'>Dấu trang</p>
 					<p className='text-slate-500 text-sm'>@{bookmarks?.length || 0} bài viết</p>
 				</div>

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, forwardRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
@@ -14,7 +14,7 @@ import {
 import { useDebounce } from "../../hooks/useDebounce";
 import { loadSearchHistory, saveSearchHistory } from "../../utils/searchHistory";
 
-const AutocompleteSearch = () => {
+const AutocompleteSearch = forwardRef((props, ref) => {
 	const [searchTerm, setSearchTerm] = useState("");
 	const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 	const [searchHistory, setSearchHistory] = useState([]);
@@ -98,6 +98,7 @@ const AutocompleteSearch = () => {
 		<div className="relative w-full" ref={dropdownRef}>
 			<form onSubmit={handleSubmit} className="relative w-full z-20">
 				<input
+					ref={ref}
 					type="text"
 					className="w-full rounded-2xl border border-slate-200 bg-white/90 py-3 pl-11 pr-11 text-[14px] text-slate-900 shadow-sm outline-none transition-all duration-300 placeholder:text-slate-400 focus:border-indigo-500/40 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 dark:border-slate-800 dark:bg-slate-900/90 dark:text-slate-50 dark:placeholder:text-slate-500 dark:focus:bg-slate-900"
 					placeholder="Tìm kiếm người, bài viết, hashtag..."
@@ -438,6 +439,8 @@ const AutocompleteSearch = () => {
 			</AnimatePresence>
 		</div>
 	);
-};
+});
+
+AutocompleteSearch.displayName = "AutocompleteSearch";
 
 export default AutocompleteSearch;

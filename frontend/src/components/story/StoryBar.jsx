@@ -84,7 +84,7 @@ const StoryBar = () => {
 	if (isLoading) return <LoadingSpinner />;
 
 	return (
-		<div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide py-2">
+		<div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide py-2 px-4 sm:px-0">
 			{/* Create Story Button */}
 			<div className="flex flex-col items-center gap-1 min-w-[70px]">
 				<div

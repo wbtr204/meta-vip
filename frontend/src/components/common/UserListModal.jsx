@@ -49,42 +49,49 @@ const UserListModal = ({ isOpen, onClose, title, userId, endpoint, allowActions 
 
 				{/* Modal Content */}
 				<motion.div
-					initial={{ opacity: 0, scale: 0.98 }}
-					animate={{ opacity: 1, scale: 1 }}
-					exit={{ opacity: 0, scale: 0.98 }}
-					transition={{ duration: 0.15, ease: "easeOut" }}
-					className='relative w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200/60 dark:border-slate-800/60 overflow-hidden flex flex-col max-h-[80vh]'
+					initial={{ opacity: 0, y: "100%" }}
+					animate={{ opacity: 1, y: 0 }}
+					exit={{ opacity: 0, y: "100%" }}
+					transition={{ type: "spring", damping: 25, stiffness: 200 }}
+					className='relative w-full max-w-md bg-white dark:bg-slate-900 rounded-t-[2rem] sm:rounded-3xl shadow-2xl border border-slate-200/60 dark:border-slate-800/60 overflow-hidden flex flex-col max-h-[85vh] sm:max-h-[80vh] mt-auto sm:mt-0'
 				>
+					{/* Mobile Handle */}
+					<div className="flex justify-center py-3 sm:hidden">
+						<div className="w-12 h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full" />
+					</div>
+
 					{/* Header */}
-					<div className='px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900 sticky top-0 z-10'>
-						<h3 className='text-lg font-black text-slate-900 dark:text-white tracking-tight'>
-							{title}
-						</h3>
+					<div className='px-6 py-5 sm:py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900 sticky top-0 z-10'>
+						<div>
+							<h3 className='text-xl font-black text-slate-900 dark:text-white tracking-tight'>
+								{title}
+							</h3>
+						</div>
 						<button
 							onClick={onClose}
-							className='p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all'
+							className='p-2.5 rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all'
 						>
 							<X size={20} />
 						</button>
 					</div>
 
 					{/* List Area */}
-					<div className='flex-1 overflow-y-auto no-scrollbar p-2'>
+					<div className='flex-1 overflow-y-auto no-scrollbar p-3'>
 						{isLoading ? (
-							<div className='flex justify-center py-12'>
+							<div className='flex justify-center py-16'>
 								<LoadingSpinner size='lg' />
 							</div>
 						) : users?.length === 0 ? (
-							<div className='flex flex-col items-center justify-center py-16 text-center px-6'>
-								<div className='w-16 h-16 bg-slate-50 dark:bg-slate-800 rounded-2xl flex items-center justify-center text-slate-300 dark:text-slate-600 mb-4'>
-									<UserIcon size={32} />
+							<div className='flex flex-col items-center justify-center py-20 text-center px-6'>
+								<div className='w-20 h-20 bg-slate-50 dark:bg-slate-800 rounded-[2rem] flex items-center justify-center text-slate-300 dark:text-slate-600 mb-6'>
+									<UserIcon size={40} />
 								</div>
-								<p className='text-slate-500 dark:text-slate-400 font-bold text-sm'>
-									Danh sách trống
+								<p className='text-slate-500 dark:text-slate-400 font-bold'>
+									Danh sách chưa có ai
 								</p>
 							</div>
 						) : (
-							<div className='space-y-1'>
+							<div className='space-y-2'>
 								{users?.map((user) => {
 									const isMe = authUser?._id === user._id;
 									const amIFollowing = authUser?.following?.includes(user._id);
@@ -92,23 +99,25 @@ const UserListModal = ({ isOpen, onClose, title, userId, endpoint, allowActions 
 									return (
 										<div
 											key={user._id}
-											className='flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors group'
+											className='flex items-center justify-between p-3.5 rounded-[1.5rem] hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors group'
 										>
 											<Link
 												to={`/profile/${user.username}`}
 												onClick={onClose}
-												className='flex items-center gap-3 flex-1 min-w-0'
+												className='flex items-center gap-4 flex-1 min-w-0'
 											>
-												<img
-													src={user.profileImg || "/avatar-placeholder.png"}
-													className='w-11 h-11 rounded-2xl object-cover border border-slate-100 dark:border-slate-800'
-													alt={user.fullName}
-												/>
+												<div className="relative shrink-0">
+													<img
+														src={user.profileImg || "/avatar-placeholder.png"}
+														className='w-14 h-14 rounded-2xl object-cover border-2 border-white dark:border-slate-900 shadow-sm'
+														alt={user.fullName}
+													/>
+												</div>
 												<div className='flex flex-col min-w-0'>
-													<span className='font-bold text-sm text-slate-900 dark:text-white truncate group-hover:text-indigo-500 transition-colors'>
+													<span className='font-black text-[15px] text-slate-900 dark:text-white truncate group-hover:text-indigo-600 transition-colors tracking-tight'>
 														{user.fullName}
 													</span>
-													<span className='text-xs text-slate-500 dark:text-slate-400 truncate'>
+													<span className='text-xs font-bold text-indigo-500/70 truncate'>
 														@{user.username}
 													</span>
 												</div>
@@ -121,17 +130,14 @@ const UserListModal = ({ isOpen, onClose, title, userId, endpoint, allowActions 
 														follow(user._id);
 													}}
 													disabled={isFollowing}
-													className={`ml-4 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 flex items-center gap-2
+													className={`ml-4 px-5 py-2.5 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all duration-300 flex items-center gap-2
 														${
 															amIFollowing
-																? "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-red-50 hover:text-red-500 hover:border-red-100"
-																: "bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-lg shadow-slate-950/10 dark:shadow-none active:scale-95"
+																? "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-red-50 hover:text-red-600 active:scale-95"
+																: "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20 hover:bg-indigo-700 active:scale-95"
 														}`}
 												>
-													{amIFollowing ? <UserMinus size={14} /> : <UserPlus size={14} />}
-													<span className='hidden sm:inline'>
-														{amIFollowing ? "Bỏ" : "Theo dõi"}
-													</span>
+													{amIFollowing ? "Hủy" : "Theo dõi"}
 												</button>
 											)}
 										</div>
@@ -141,24 +147,24 @@ const UserListModal = ({ isOpen, onClose, title, userId, endpoint, allowActions 
 						)}
 
 						{showFriendsSection && (
-							<div className='mt-4 border-t border-slate-100 dark:border-slate-800 pt-4'>
-								<div className='mb-3 px-3'>
-									<p className='text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400'>Bạn bè chung</p>
-									<p className='mt-1 text-sm text-slate-500 dark:text-slate-400'>
-										Những người bạn và hồ sơ này theo dõi chéo nhau.
+							<div className='mt-8 border-t border-slate-100 dark:border-slate-800 pt-6 px-2 mb-4'>
+								<div className='mb-4'>
+									<p className='text-[10px] font-black uppercase tracking-[0.3em] text-indigo-500'>Bạn bè chung</p>
+									<p className='mt-1 text-xs font-medium text-slate-500'>
+										Những kỷ niệm tương đồng giữa hai bạn
 									</p>
 								</div>
 
 								{isLoadingFriends ? (
-									<div className='flex justify-center py-8'>
+									<div className='flex justify-center py-10'>
 										<LoadingSpinner size='md' />
 									</div>
 								) : friends?.length === 0 ? (
-									<div className='rounded-2xl bg-slate-50 dark:bg-slate-800/40 px-4 py-6 text-center text-sm text-slate-500 dark:text-slate-400'>
-										Chưa có bạn bè chung.
+									<div className='rounded-3xl bg-slate-50 dark:bg-slate-800/40 px-6 py-10 text-center text-sm font-medium text-slate-400 italic'>
+										Chưa tìm thấy bạn chung nào.
 									</div>
 								) : (
-									<div className='space-y-1'>
+									<div className='space-y-2'>
 										{friends?.map((friend) => {
 											const isMe = authUser?._id === friend._id;
 											const amIFollowing = authUser?.following?.includes(friend._id);
@@ -166,23 +172,23 @@ const UserListModal = ({ isOpen, onClose, title, userId, endpoint, allowActions 
 											return (
 												<div
 													key={friend._id}
-													className='flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors group'
+													className='flex items-center justify-between p-3.5 rounded-[1.5rem] hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors group'
 												>
 													<Link
 														to={`/profile/${friend.username}`}
 														onClick={onClose}
-														className='flex items-center gap-3 flex-1 min-w-0'
+														className='flex items-center gap-4 flex-1 min-w-0'
 													>
 														<img
 															src={friend.profileImg || "/avatar-placeholder.png"}
-															className='w-11 h-11 rounded-2xl object-cover border border-slate-100 dark:border-slate-800'
+															className='w-14 h-14 rounded-2xl object-cover border-2 border-white dark:border-slate-900 shadow-sm'
 															alt={friend.fullName}
 														/>
 														<div className='flex flex-col min-w-0'>
-															<span className='font-bold text-sm text-slate-900 dark:text-white truncate group-hover:text-indigo-500 transition-colors'>
+															<span className='font-black text-[15px] text-slate-900 dark:text-white truncate group-hover:text-indigo-600 transition-colors tracking-tight'>
 																{friend.fullName}
 															</span>
-															<span className='text-xs text-slate-500 dark:text-slate-400 truncate'>
+															<span className='text-xs font-bold text-indigo-500/70 truncate'>
 																@{friend.username}
 															</span>
 														</div>
@@ -195,17 +201,14 @@ const UserListModal = ({ isOpen, onClose, title, userId, endpoint, allowActions 
 																follow(friend._id);
 															}}
 															disabled={isFollowing}
-															className={`ml-4 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 flex items-center gap-2
+															className={`ml-4 px-5 py-2.5 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all duration-300 flex items-center gap-2
 																${
 																	amIFollowing
-																		? "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-red-50 hover:text-red-500 hover:border-red-100"
-																		: "bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-lg shadow-slate-950/10 dark:shadow-none active:scale-95"
+																		? "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-red-50 hover:text-red-600 active:scale-95"
+																		: "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20 hover:bg-indigo-700 active:scale-95"
 																}`}
 														>
-															{amIFollowing ? <UserMinus size={14} /> : <UserPlus size={14} />}
-															<span className='hidden sm:inline'>
-																{amIFollowing ? "Bỏ" : "Theo dõi"}
-															</span>
+															{amIFollowing ? "Hủy" : "Theo dõi"}
 														</button>
 													)}
 												</div>

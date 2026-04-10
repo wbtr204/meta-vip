@@ -57,6 +57,24 @@ const NotificationItem = React.forwardRef(({ notification, onDelete, onAccept, o
                     color: "bg-purple-500", 
                     text: "đã nhắc đến bạn trong một bài viết" 
                 };
+            case "like_comment":
+                return { 
+                    icon: <Heart size={14} fill="currentColor" />, 
+                    color: "bg-pink-500", 
+                    text: "đã thích bình luận của bạn" 
+                };
+            case "reply":
+                return { 
+                    icon: <MessageSquare size={14} />, 
+                    color: "bg-teal-500", 
+                    text: "đã trả lời bình luận của bạn" 
+                };
+            case "message":
+                return { 
+                    icon: <MessageSquare size={14} />, 
+                    color: "bg-blue-600", 
+                    text: "đã gửi cho bạn một tin nhắn" 
+                };
             default:
                 return { 
                     icon: <ShieldAlert size={14} />, 
@@ -75,7 +93,9 @@ const NotificationItem = React.forwardRef(({ notification, onDelete, onAccept, o
         }
 
         // Navigate based on type
-        if (notification.postId) {
+        if (notification.type === "message") {
+            navigate(`/chat?user=${notification.from?.username}`);
+        } else if (notification.postId) {
             navigate(`/post/${notification.postId}`);
         } else if (notification.from?.username) {
             navigate(`/profile/${notification.from.username}`);
@@ -90,10 +110,10 @@ const NotificationItem = React.forwardRef(({ notification, onDelete, onAccept, o
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, scale: 0.95 }}
             onClick={handleItemClick}
-            className={`group relative flex items-start gap-5 p-6 rounded-[2rem] transition-all duration-300 border cursor-pointer ${
+            className={`group relative flex items-start gap-5 p-5 sm:p-6 sm:rounded-2xl transition-all duration-300 sm:border border-b cursor-pointer ${
                 isUnread 
                 ? "bg-indigo-50/40 dark:bg-indigo-500/5 border-indigo-100/50 dark:border-indigo-500/20 shadow-sm" 
-                : "bg-white dark:bg-slate-900/40 border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900/60"
+                : "bg-white dark:bg-slate-950 sm:dark:bg-slate-900/40 border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900/60"
             }`}
         >
             {/* Unread Indicator Pulse */}
@@ -159,7 +179,7 @@ const NotificationItem = React.forwardRef(({ notification, onDelete, onAccept, o
                         <span>{formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true, locale: vi })}</span>
                     </div>
                     
-                    {(notification.type === "like" || notification.type === "comment") && notification.postId && (
+                    {notification.postId && (
                         <div className="flex items-center gap-1.5 text-[10px] font-black text-indigo-500 uppercase tracking-widest group-hover:translate-x-1 transition-transform">
                             <span>Xem bài viết</span>
                             <ExternalLink size={10} />

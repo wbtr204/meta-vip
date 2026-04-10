@@ -9,6 +9,7 @@ import {
 	getLikedPosts,
 	getUserPosts,
 	likeUnlikePost,
+	likeUnlikeComment,
 	searchPosts,
 	deleteComment,
 	editPost,
@@ -34,6 +35,7 @@ router.get("/:id", protectRoute, getPost);
 router.post("/create", protectRoute, createPost);
 router.post("/like/:id", protectRoute, likeUnlikePost);
 router.post("/comment/:id", protectRoute, commentOnPost);
+router.post("/comment/:postId/:commentId/like", protectRoute, likeUnlikeComment);
 router.post("/bookmark/:id", protectRoute, bookmarkPost);
 router.post("/repost/:id", protectRoute, repostPost);
 router.put("/:id", protectRoute, editPost);

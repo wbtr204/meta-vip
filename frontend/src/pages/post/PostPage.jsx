@@ -37,7 +37,7 @@ const PostPage = () => {
 
 	return (
 		<div className='min-h-screen border-r border-white/5'>
-			<div className='flex gap-10 px-6 py-4 items-center glass-morphism sticky top-0 z-10'>
+			<div className='flex gap-10 px-4 sm:px-6 py-4 items-center glass-morphism sticky top-0 z-10'>
 				<Link to='/'>
 					<motion.div whileHover={{ scale: 1.1, x: -2 }} whileTap={{ scale: 0.9 }}>
 						<FaArrowLeft className='w-5 h-5 text-primary' />
@@ -47,30 +47,9 @@ const PostPage = () => {
 			</div>
 
 			<div className='flex flex-col'>
-				{post && <Post post={post} isDetailPage={true} />}
+				{post && <Post post={post} />}
 				
-				{/* Threaded Comments Section */}
-				<div className='mt-4 border-t border-white/5'>
-					{post?.comments?.map((comment) => (
-						<div key={comment._id} className='px-4 py-2'>
-							{/* Recursion or nesting would go here for real threaded replies */}
-							<div className='flex gap-3 p-4 glass-morphism rounded-2xl border border-white/5 mb-2'>
-								<div className='avatar'>
-									<div className='w-10 rounded-xl'>
-										<img src={comment.user.profileImg || "/avatar-placeholder.png"} />
-									</div>
-								</div>
-								<div className='flex flex-col w-full'>
-									<div className='flex items-center gap-2'>
-										<span className='font-bold'>@{comment.user.username}</span>
-										<span className='text-slate-500 text-sm'>1h</span>
-									</div>
-									<p className='text-sm mt-1'>{comment.text}</p>
-								</div>
-							</div>
-						</div>
-					))}
-				</div>
+				{/* Threaded Comments Section handled by Post component modal or inline if desired */}
 			</div>
 		</div>
 	);

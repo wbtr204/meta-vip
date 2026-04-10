@@ -1,4 +1,7 @@
-import Notification from "../models/notification.model.js";
+const fs = require('fs');
+
+const file = 'backend/controllers/post.controller.js';
+const content = `import Notification from "../models/notification.model.js";
 import Post from "../models/post.model.js";
 import User from "../models/user.model.js";
 import Hashtag from "../models/hashtag.model.js";
@@ -62,7 +65,7 @@ export const createPost = async (req, res) => {
 		const moderation = moderateContent([text, location].filter(Boolean).join(" "));
 		if (moderation.blocked) {
 			return res.status(400).json({
-				error: `Bài viết bị chặn do kiểm duyệt: ${formatModerationReasons(moderation.reasons).join(", ")}`,
+				error: \`Bài viết bị chặn do kiểm duyệt: \${formatModerationReasons(moderation.reasons).join(", ")}\`,
 			});
 		}
 
@@ -80,7 +83,7 @@ export const createPost = async (req, res) => {
         const uploadedVideo = await uploadResource(video, "video");
 
         // Extract hashtags
-        const extractedHashtags = text ? text.match(/#\w+/g)?.map(tag => tag.toLowerCase()) || [] : [];
+        const extractedHashtags = text ? text.match(/#\\w+/g)?.map(tag => tag.toLowerCase()) || [] : [];
 
         const newPost = await Post.create({
             user: userId,
@@ -98,10 +101,10 @@ export const createPost = async (req, res) => {
             if (allKeywords.length > 0) {
                 await Promise.all(
                     allKeywords.map(async (tag) => {
-                        // We filter for basic relevance (not just random letters)
-                        if (tag.length > 2) {
+                        const cleanTag = tag.replace('#', '').toLowerCase();
+                        if (cleanTag.length > 2) {
                             await Hashtag.updateOne(
-                                { text: tag }, 
+                                { text: cleanTag }, 
                                 { $inc: { count: 1 } }, 
                                 { upsert: true }
                             );
@@ -136,7 +139,9 @@ export const deletePost = async (req, res) => {
             await cloudinary.uploader.destroy(resourceId, { resource_type: resourceType });
         };
 
-        await destroyResource(post.img);
+        if (post.imgs && post.imgs.length > 0) {
+            await Promise.all(post.imgs.map(img => destroyResource(img)));
+        }
         await destroyResource(post.video, "video");
         
         await Post.findByIdAndDelete(postId);
@@ -158,7 +163,7 @@ export const commentOnPost = async (req, res) => {
 		const moderation = moderateContent(text);
 		if (moderation.blocked || moderation.flagged) {
 			return res.status(400).json({
-				error: `Bình luận bị chặn do kiểm duyệt: ${formatModerationReasons(moderation.reasons).join(", ")}`,
+				error: \`Bình luận bị chặn do kiểm duyệt: \${formatModerationReasons(moderation.reasons).join(", ")}\`,
 			});
 		}
 
@@ -168,12 +173,10 @@ export const commentOnPost = async (req, res) => {
         post.comments.push({ user: userId, text, parentId: parentId || null });
         await post.save();
 
-        let parentCommentAuthorId = null;
         if (parentId) {
              // Handle reply notification
              const parentComment = post.comments.id(parentId);
              if (parentComment && parentComment.user.toString() !== userId.toString()) {
-                  parentCommentAuthorId = parentComment.user.toString();
                   const notification = await Notification.create({
                       from: userId,
                       to: parentComment.user,
@@ -187,12 +190,8 @@ export const commentOnPost = async (req, res) => {
              }
         }
 
-        // Notify post owner only if they are not the sender 
-        // AND not already notified as parent comment author
-        const postOwnerId = post.user.toString();
-        const currentUserId = userId.toString();
-        
-        if (postOwnerId !== currentUserId && postOwnerId !== parentCommentAuthorId) {
+        // Always notify post owner about a comment (if they didn't write it themselves)
+        if (post.user.toString() !== userId.toString()) {
             const notification = await Notification.create({
                 from: userId,
                 to: post.user,
@@ -240,139 +239,94 @@ export const deleteComment = async (req, res) => {
 	}
 };
 
-
 export const likeUnlikeComment = async (req, res) => {
-	try {
-		const userId = req.user._id;
-		const { postId, commentId } = req.params;
+    try {
+        const userId = req.user._id;
+        const { postId, commentId } = req.params;
 
-		const post = await Post.findById(postId);
-		if (!post) return res.status(404).json({ error: "Post not found" });
+        const post = await Post.findById(postId);
+        if (!post) return res.status(404).json({ error: "Post not found" });
 
-		const comment = post.comments.id(commentId);
-		if (!comment) return res.status(404).json({ error: "Comment not found" });
+        const comment = post.comments.id(commentId);
+        if (!comment) return res.status(404).json({ error: "Comment not found" });
 
-		const userIdStr = userId.toString();
-		const isLiked = comment.likes.some(id => id.toString() === userIdStr);
+        const isLiked = comment.likes.includes(userId);
 
-		if (isLiked) {
-			// Unlike comment
-			comment.likes.pull(userId);
-			await post.save();
+        if (isLiked) {
+            // Unlike comment
+            comment.likes.pull(userId);
+            await post.save();
+            res.status(200).json(comment.likes);
+        } else {
+            // Like comment
+            comment.likes.push(userId);
+            await post.save();
+            
+            // Notify comment author
+            if (comment.user.toString() !== userId.toString()) {
+                const notification = await Notification.create({
+                    from: userId,
+                    to: comment.user,
+                    type: "like_comment",
+                    postId: postId,
+                });
+                
+                const populatedNotif = await notification.populate("from", "fullName profileImg");
+                const receiverSocketId = getReceiverSocketId(comment.user);
+                if (receiverSocketId) {
+                    io.to(receiverSocketId).emit("newNotification", populatedNotif);
+                }
+            }
 
-			// Remove notification when unlike
-			await Notification.deleteOne({
-				from: userId,
-				to: comment.user,
-				type: "like_comment",
-				postId: postId,
-			});
-
-			res.status(200).json(comment.likes);
-		} else {
-			// Like comment
-			comment.likes.push(userId);
-			await post.save();
-			
-			// Notify comment author
-			if (comment.user.toString() !== userId.toString()) {
-				// Check for existing notification to avoid spam
-				const existingNotif = await Notification.findOne({
-					from: userId,
-					to: comment.user,
-					type: "like_comment",
-					postId: postId,
-				});
-
-				if (!existingNotif) {
-					const notification = await Notification.create({
-						from: userId,
-						to: comment.user,
-						type: "like_comment",
-						postId: postId,
-					});
-					
-					const populatedNotif = await notification.populate("from", "fullName profileImg");
-					const receiverSocketId = getReceiverSocketId(comment.user);
-					if (receiverSocketId) {
-						io.to(receiverSocketId).emit("newNotification", populatedNotif);
-					}
-				}
-			}
-
-			res.status(200).json(comment.likes);
-		}
-	} catch (error) {
-		console.error("Error in likeUnlikeComment controller: ", error);
-		res.status(500).json({ error: "Internal server error" });
-	}
+            res.status(200).json(comment.likes);
+        }
+    } catch (error) {
+        console.error("Error in likeUnlikeComment controller: ", error);
+        res.status(500).json({ error: "Internal server error" });
+    }
 };
 
 export const likeUnlikePost = async (req, res) => {
     try {
         const userId = req.user._id;
         const { id: postId } = req.params;
-        const { type } = req.body; // like, love, haha, wow, sad, angry
+        const { type } = req.body; 
 
         const post = await Post.findById(postId);
         if (!post) return res.status(404).json({ error: "Post not found" });
 
-        const userIdStr = userId.toString();
-        const existingReactionIndex = post.reactions.findIndex((r) => r.user.toString() === userIdStr);
+        const existingReactionIndex = post.reactions.findIndex((r) => r.user.toString() === userId.toString());
 
         if (existingReactionIndex !== -1) {
             const existingType = post.reactions[existingReactionIndex].type;
             
             if (existingType === type || !type) {
-                // Remove reaction if same type or no type provided (legacy like button)
                 post.reactions.splice(existingReactionIndex, 1);
                 await post.save();
                 await User.updateOne({ _id: userId }, { $pull: { likedPosts: postId } });
-
-                // Remove notification when unliking/removing reaction
-                await Notification.deleteOne({
-                    from: userId,
-                    to: post.user,
-                    type: "like",
-                    postId: postId,
-                });
-
                 res.status(200).json(post.reactions);
             } else {
-                // Update reaction type
                 post.reactions[existingReactionIndex].type = type;
                 await post.save();
                 res.status(200).json(post.reactions);
             }
         } else {
-            // Add new reaction
             post.reactions.push({ user: userId, type: type || "like" });
             await post.save();
             await User.updateOne({ _id: userId }, { $push: { likedPosts: postId } });
 
             if (post.user.toString() !== userId.toString()) {
-                // Check if unread notification already exists to avoid spam
-                const existingNotif = await Notification.findOne({
+                const notification = await Notification.create({
                     from: userId,
                     to: post.user,
                     type: "like",
                     postId: postId,
-                    read: false
                 });
 
-                if (!existingNotif) {
-                    const notification = await Notification.create({
-                        from: userId,
-                        to: post.user,
-                        type: "like",
-                        postId: postId,
-                    });
-
-                    const populatedNotif = await notification.populate("from", "fullName profileImg");
-                    const receiverSocketId = getReceiverSocketId(post.user);
-                    if (receiverSocketId) {
-                        io.to(receiverSocketId).emit("newNotification", populatedNotif);
-                    }
+                const populatedNotif = await notification.populate("from", "fullName profileImg");
+                const receiverSocketId = getReceiverSocketId(post.user);
+                if (receiverSocketId) {
+                    io.to(receiverSocketId).emit("newNotification", populatedNotif);
                 }
             }
             res.status(200).json(post.reactions);
@@ -403,7 +357,6 @@ export const getAllPosts = async (req, res) => {
 				},
 			});
 
-		// Filter out posts with deleted users
 		res.status(200).json(filterVisiblePosts(posts.filter((post) => post.user !== null), req.user));
 	} catch (error) {
 		console.error("Error in getAllPosts controller: ", error);
@@ -425,9 +378,7 @@ export const getPost = async (req, res) => {
 				},
 			});
 
-		if (!post) {
-			return res.status(404).json({ error: "Bài viết không tồn tại" });
-		}
+		if (!post) return res.status(404).json({ error: "Bài viết không tồn tại" });
 
 		if (!isVisibleToViewer(post, req.user, { allowModeratedForOwner: true })) {
 			return res.status(404).json({ error: "Bài viết không tồn tại" });
@@ -454,7 +405,7 @@ export const getLikedPosts = async (req, res) => {
 		const amIFollowing = user.followers.includes(req.user._id);
 
 		if (user.isPrivate && !isMyProfile && !amIFollowing) {
-			return res.status(200).json([]); // Return empty list if private and not following
+			return res.status(200).json([]);
 		}
 
 		const likedPosts = await Post.find({ _id: { $in: user.likedPosts }, ...PUBLIC_POST_FILTER })
@@ -527,7 +478,7 @@ export const getUserPosts = async (req, res) => {
 		const amIFollowing = user.followers.includes(req.user._id);
 
 		if (user.isPrivate && !isMyProfile && !amIFollowing) {
-			return res.status(200).json([]); // Return empty list if private and not following
+			return res.status(200).json([]);
 		}
 
 		const userPostFilter = isMyProfile || req.user.role === "admin" || req.user.email === "admin@gmail.com"
@@ -585,23 +536,23 @@ export const searchPosts = async (req, res) => {
 
 export const editPost = async (req, res) => {
 	try {
-		const { text } = req.body;
-		let { img } = req.body;
-		const { id: postId } = req.params;
-		const userId = req.user._id;
+        const { text } = req.body;
+        let { img } = req.body;
+        const { id: postId } = req.params;
+        const userId = req.user._id;
 
-		let post = await Post.findById(postId);
-		if (!post) return res.status(404).json({ error: "Post not found" });
+        let post = await Post.findById(postId);
+        if (!post) return res.status(404).json({ error: "Post not found" });
 
-		if (post.user.toString() !== userId.toString()) {
-			return res.status(401).json({ error: "You are not authorized to edit this post" });
-		}
+        if (post.user.toString() !== userId.toString()) {
+            return res.status(401).json({ error: "You are not authorized to edit this post" });
+        }
 
 		if (typeof text === "string" && text.trim()) {
 			const moderation = moderateContent([text, post.location].filter(Boolean).join(" "));
 			if (moderation.blocked) {
 				return res.status(400).json({
-					error: `Bài viết bị chặn do kiểm duyệt: ${formatModerationReasons(moderation.reasons).join(", ")}`,
+					error: \`Bài viết bị chặn do kiểm duyệt: \${formatModerationReasons(moderation.reasons).join(", ")}\`,
 				});
 			}
 
@@ -639,11 +590,9 @@ export const bookmarkPost = async (req, res) => {
 		const isBookmarked = user.bookmarks.includes(postId);
 
 		if (isBookmarked) {
-			// Unbookmark
 			await User.updateOne({ _id: userId }, { $pull: { bookmarks: postId } });
 			res.status(200).json({ message: "Post unbookmarked successfully" });
 		} else {
-			// Bookmark
 			user.bookmarks.push(postId);
 			await user.save();
 			res.status(200).json({ message: "Post bookmarked successfully" });
@@ -660,17 +609,8 @@ export const getBookmarks = async (req, res) => {
 		const user = await User.findById(userId).populate({
 			path: "bookmarks",
 			populate: [
-				{
-					path: "user",
-					select: "-password",
-				},
-				{
-					path: "repostOf",
-					populate: {
-						path: "user",
-						select: "-password",
-					},
-				},
+				{ path: "user", select: "-password" },
+				{ path: "repostOf", populate: { path: "user", select: "-password" } },
 			],
 		});
 
@@ -698,35 +638,26 @@ export const repostPost = async (req, res) => {
 		const alreadyReposted = post.reposts.includes(userId);
 
 		if (alreadyReposted) {
-			// Remove repost
 			await Post.updateOne({ _id: postId }, { $pull: { reposts: userId } });
-			// Find and delete the reposted post instance
 			await Post.findOneAndDelete({ user: userId, repostOf: postId });
 			res.status(200).json({ message: "Post un-reposted successfully" });
 		} else {
-			// Add repost
 			post.reposts.push(userId);
 			await post.save();
 
-			const newRepost = new Post({
-				user: userId,
-				repostOf: postId,
-			});
-
+			const newRepost = new Post({ user: userId, repostOf: postId });
 			await newRepost.save();
 
-			// Notification to original post owner
 			if (post.user.toString() !== userId.toString()) {
 				const notification = await Notification.create({
 					from: userId,
 					to: post.user,
-					type: "like", // Reuse 'like' type or add 'repost' if needed. Let's stick to simple types for now or add 'repost'
+					type: "like", 
 				});
 
+                const populatedNotif = await notification.populate("from", "fullName profileImg");
 				const receiverSocketId = getReceiverSocketId(post.user);
-				if (receiverSocketId) {
-					io.to(receiverSocketId).emit("newNotification", notification);
-				}
+				if (receiverSocketId) io.to(receiverSocketId).emit("newNotification", populatedNotif);
 			}
 
 			res.status(201).json(newRepost);
@@ -746,8 +677,6 @@ export const getTrendingHashtags = async (req, res) => {
 		res.status(500).json({ error: "Lỗi máy chủ khi lấy danh sách hashtag thịnh hành" });
 	}
 };
-
-
 
 export const getExplorePosts = async (req, res) => {
     try {
@@ -804,3 +733,7 @@ export const getExplorePosts = async (req, res) => {
         res.status(500).json({ error: "Internal server error" });
     }
 };
+`;
+
+fs.writeFileSync(file, content);
+console.log("Successfully repaired post.controller.js");

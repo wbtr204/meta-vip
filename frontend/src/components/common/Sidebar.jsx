@@ -4,10 +4,16 @@ import { useState, useRef, useEffect } from "react";
 import useLogout from "../../hooks/useLogout";
 import AutocompleteSearch from "./AutocompleteSearch";
 import BrandLogo from "./BrandLogo";
+import CreatePostModal from "./CreatePostModal";
+import { Search } from "lucide-react";
 
 const Sidebar = () => {
     const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+    const [isCreatePostModalOpen, setIsCreatePostModalOpen] = useState(false);
+    const [isSearchVisible, setIsSearchVisible] = useState(false);
     const userMenuRef = useRef(null);
+    const searchContainerRef = useRef(null);
+    const searchInputRef = useRef(null);
     const location = useLocation();
     const { logout } = useLogout();
 
@@ -34,20 +40,29 @@ const Sidebar = () => {
         },
     });
 
+    const unreadNotifCount = unreadNotifData?.count || 0;
+    const unreadChatCount = conversations?.reduce((acc, conv) => acc + (conv.unreadCount || 0), 0) || 0;
+    const viewMode = new URLSearchParams(location.search).get("view") || "all";
+
     useEffect(() => {
         const handleClickOutside = (event) => {
             if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
                 setIsUserMenuOpen(false);
             }
+            if (isSearchVisible && searchContainerRef.current && !searchContainerRef.current.contains(event.target)) {
+                setIsSearchVisible(false);
+            }
         };
 
         document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
+    }, [isSearchVisible]);
 
-    const unreadNotifCount = unreadNotifData?.count || 0;
-    const unreadChatCount = conversations?.reduce((acc, conv) => acc + (conv.unreadCount || 0), 0) || 0;
-    const viewMode = new URLSearchParams(location.search).get("view") || "all";
+    useEffect(() => {
+        if (isSearchVisible && searchInputRef.current) {
+            searchInputRef.current.focus();
+        }
+    }, [isSearchVisible]);
 
     const isActive = (path) => {
         if (path === "/") return location.pathname === "/" && viewMode !== "saved";
@@ -61,39 +76,60 @@ const Sidebar = () => {
         { to: "/", icon: "home", label: "Trang chủ" },
         { to: "/explore", icon: "explore", label: "Khám phá" },
         { to: "/notifications", icon: "notifications", label: "Thông báo", badge: unreadNotifCount },
-        { to: "/?view=saved", icon: "bookmark", label: "Đã lưu" },
+        { to: "/bookmarks", icon: "bookmark", label: "Đã lưu" },
         { to: "/chat", icon: "mail", label: "Tin nhắn", badge: unreadChatCount },
         ...((authUser.role === "admin" || authUser.email === "admin@gmail.com")
             ? [{ to: "/admin", icon: "admin_panel_settings", label: "Quản trị" }]
             : []),
     ];
+
     const mobileNavItems = [
-        ...navItems,
+        { to: "/", icon: "home", label: "Trang chủ" },
+        { to: "/explore", icon: "explore", label: "Khám phá" },
+        { to: "/notifications", icon: "notifications", label: "TB", badge: unreadNotifCount },
+        { to: "/chat", icon: "mail", label: "Chat", badge: unreadChatCount },
         { to: `/profile/${authUser.username}`, icon: "person", label: "Hồ sơ" },
     ];
 
     return (
         <>
             <header className="fixed top-0 left-0 w-full z-50 bg-white dark:bg-slate-950 border-b border-slate-200/50 dark:border-slate-800/50 shadow-sm transition-colors duration-300">
-                <div className="grid grid-cols-[auto,minmax(0,1fr),auto] items-center gap-6 px-6 py-3 w-full max-w-screen-2xl mx-auto h-16">
-                    <div className="flex items-center gap-2.5 shrink-0">
-                        <Link to="/" className="flex items-center gap-2.5 shrink-0">
-                            <BrandLogo size="sm" />
-                        </Link>
-                    </div>
-                    <div className="hidden md:flex w-full justify-center">
-                        <div className="w-full max-w-[400px]">
-                            <AutocompleteSearch />
+                <div className={`flex items-center ${isSearchVisible ? "justify-center" : "justify-between"} gap-4 sm:gap-6 px-4 sm:px-6 py-3 w-full max-w-screen-2xl mx-auto h-16`}>
+                    {/* Left: Logo */}
+                    {!isSearchVisible && (
+                        <div className="flex-1 flex justify-start items-center transition-all">
+                            <Link to="/" className="flex items-center gap-2.5 shrink-0">
+                                <BrandLogo size="sm" />
+                            </Link>
+                        </div>
+                    )}
+
+                    {/* Middle: Search */}
+                    <div 
+                        ref={searchContainerRef}
+                        className={`${isSearchVisible ? "flex-1" : "hidden md:flex md:flex-1"} justify-center transition-all animate-in fade-in duration-300`}
+                    >
+                        <div className="w-full max-w-[400px] relative">
+                            <AutocompleteSearch ref={searchInputRef} />
                         </div>
                     </div>
-                    <nav className="flex items-center gap-4" ref={userMenuRef}>
-                        <div className="relative">
+
+                    {/* Right: Nav Actions */}
+                    {!isSearchVisible && (
+                        <nav className="flex-1 flex items-center justify-end gap-2 sm:gap-4 transition-all" ref={userMenuRef}>
                             <button
-                                onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                                className={`flex items-center gap-2 p-1 rounded-full transition-all duration-300 ${
-                                    isUserMenuOpen ? "bg-indigo-50 dark:bg-indigo-500/10 ring-2 ring-indigo-500/20" : "hover:bg-slate-100 dark:hover:bg-slate-800"
-                                }`}
+                                onClick={() => setIsSearchVisible(true)}
+                                className="md:hidden p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 transition-colors"
                             >
+                                <Search size={22} />
+                            </button>
+                            <div className="relative">
+                                <button
+                                    onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                                    className={`flex items-center gap-2 p-1 rounded-full transition-all duration-300 ${
+                                        isUserMenuOpen ? "bg-indigo-50 dark:bg-indigo-500/10 ring-2 ring-indigo-500/20" : "hover:bg-slate-100 dark:hover:bg-slate-800"
+                                    }`}
+                                >
                                 <img
                                     className="w-8 h-8 rounded-full object-cover border border-slate-200 dark:border-slate-700 shadow-sm"
                                     src={authUser.profileImg || "/avatar-placeholder.png"}
@@ -137,6 +173,7 @@ const Sidebar = () => {
                             )}
                         </div>
                     </nav>
+                )}
                 </div>
             </header>
 
@@ -221,13 +258,19 @@ const Sidebar = () => {
                     })}
             </nav>
 
-            <Link
-                to="/"
-                onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-                className="lg:hidden fixed bottom-20 right-6 w-14 h-14 bg-indigo-500 rounded-full shadow-lg flex items-center justify-center text-white z-40 active:scale-95 transition-transform"
-            >
-                <span className="material-symbols-outlined text-2xl">edit</span>
-            </Link>
+            {location.pathname === "/" && (
+                <button
+                    onClick={() => setIsCreatePostModalOpen(true)}
+                    className="lg:hidden fixed bottom-24 right-5 w-14 h-14 bg-indigo-500 rounded-full shadow-[0_8px_25px_rgba(79,70,229,0.4)] flex items-center justify-center text-white z-40 active:scale-90 transition-all"
+                >
+                    <span className="material-symbols-outlined text-2xl">edit</span>
+                </button>
+            )}
+
+            <CreatePostModal 
+                isOpen={isCreatePostModalOpen} 
+                onClose={() => setIsCreatePostModalOpen(false)} 
+            />
         </>
     );
 };

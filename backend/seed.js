@@ -71,45 +71,82 @@ async function seedData() {
 
         // THEME TEMPLATES for realistic analysis
         const THEMES = [
-            "Đồ án tốt nghiệp sắp tới rồi, mọi người chuẩn bị đến đâu rồi? #KhoaLuan #CNTT",
-            "Công nghệ React và Nodejs thực sự rất mạnh mẽ cho các dự án Web. #ReactJS #Fullstack",
-            "VibeNet là một mạng xã hội tuyệt vời để kết nối sinh viên IT. #VibeNet #Friendly",
-            "Mọi người nghĩ sao về ứng dụng của AI và Chatbot trong giáo dục hiện nay?",
-            "Tuyển dụng thực tập sinh Web Developer cho dự án mới tại Hà Nội. #Tuyendung #Intern",
-            "Cảm giác hoàn thành xong một chức năng khó trong code thật là sướng! #CodingLife",
-            "Hôm nay trời đẹp, rất thích hợp để lên thư viện học lập trình Python.",
-            "Chia sẻ kinh nghiệm phỏng vấn tại các công ty công nghệ lớn. #Interview #Tech",
-            "Cần tìm đồng đội làm dự án khởi nghiệp về lĩnh vực Blockchain và Web3.",
-            "Tại sao nên học TypeScript thay vì JavaScript thuần cho các dự án lớn?",
-            "Lộ trình học Frontend cho người mới bắt đầu từ con số 0.",
-            "Bí quyết quản lý thời gian hiệu quả cho sinh viên năm cuối. #StudyTips",
-            "Những thư viện UI tốt nhất cho React mà bạn nên biết: Shadcn, Tailwind, HeadlessUI.",
-            "Thảo luận về bảo mật trong lập trình Web và cách phòng chống SQL Injection.",
-            "Ra mắt tính năng Phân tích Xu hướng mới trên VibeNet, mọi người dùng thử nhé! #Update #AI"
+            // Công nghệ
+            "Công nghệ React và Nodejs thực sự rất mạnh mẽ cho các dự án Web. #ReactJS #Fullstack #CongNghe",
+            "Tại sao nên học TypeScript thay vì JavaScript thuần cho các dự án lớn? #TypeScript #WebDev #CongNghe",
+            "Thảo luận về bảo mật trong lập trình Web và cách phòng chống SQL Injection. #CyberSecurity #CongNghe",
+            "Mọi người nghĩ sao về ứng dụng của AI và Chatbot trong giáo dục hiện nay? #AI #ChatGPT #CongNghe",
+            "Ra mắt tính năng Phân tích Xu hướng mới trên VibeNet, mọi người dùng thử nhé! #Update #AI #Review",
+            
+            // Giải trí
+            "Bộ phim mới ra rạp hôm nay thực sự vượt quá sự kỳ vọng, kịch bản quá xuất sắc! #ReviewPhim #GiaiTri #Trending",
+            "Ai đi xem show ca nhạc cuối tuần này không? Kéo team đi chung cho vui nào! #Concert #GiaiTri #Music",
+            "Vừa cày xong bộ anime mùa này, kết thúc thật sự quá cảm xúc. Khóc cạn nước mắt 😭 #Anime #GiaiTri",
+            "Tựa game mới ra đồ họa đỉnh thật sự, nhưng gameplay hơi lặp lại. #Gaming #Review #Esports",
+            
+            // Tin nóng & Sự kiện
+            "Tuyển dụng thực tập sinh Web Developer cho dự án mới tại Hà Nội. Nộp CV ngay! #Tuyendung #Intern #TinNong",
+            "Giao thông hôm nay tắc đường khủng khiếp, mọi người nhớ tránh đoạn đường này ra nhé. #GiaoThong #TinNong",
+            "Thời tiết dạo này thay đổi thất thường quá, ra đường nhớ mang theo áo mưa nha. #ThoiTiet #TinNong",
+            "Thị trường tài chính biến động mạnh trong sáng nay, các nhà đầu tư cần cẩn trọng. #TinNong #KinhTe #Update",
+            
+            // Đời sống & Học tập
+            "Đồ án tốt nghiệp sắp tới rồi, mọi người chuẩn bị đến đâu rồi? #KhoaLuan #CNTT #HocTap",
+            "Hôm nay trời đẹp, rất thích hợp để lên thư viện học lập trình Python. #CodingLife #StudyTips #DoiSong",
+            "Lộ trình học Frontend cho người mới bắt đầu từ con số 0. Một hành trình gian nan. #HocTap #Tips",
+            "Bí quyết quản lý thời gian hiệu quả cho sinh viên năm cuối. Đừng để deadline dí mới làm! #StudyTips #DoiSong",
+            "Chia sẻ kinh nghiệm phỏng vấn tại các công ty công nghệ lớn. Tự tin là chính mình! #Interview #JobSearch",
+            "Mẹo học tiếng Anh giao tiếp hiệu quả mỗi ngày qua việc xem phim. #HocTap #English #DoiSong",
+            
+            // Khám phá
+            "Vừa khám phá ra một quán cafe view xịn xò để chạy deadline. Không gian yên tĩnh cực kỳ. #Cafe #KhamPha",
+            "Review chuyến du lịch Đà Lạt 3 ngày 2 đêm cực chill. Tiết kiệm và đậm chất thơ! #Travel #DaLat #KhamPha",
+            "Món ăn streetfood này ngon xuất sắc, khuyên mọi người nên thử một lần. #FoodReview #KhamPha #AmThuc",
+            "Cảnh hoàng hôn ở Tây Hồ chiều nay đẹp rạng ngời, không bõ công đi chụp ảnh. #KhamPha #HaNoi #Checkin"
         ];
 
         // Generate Posts
-        console.log(`Generating ${TOTAL_POSTS} themed and random posts...`);
+        console.log(`Generating ${TOTAL_POSTS} themed posts...`);
         const newPosts = [];
         for (let i = 0; i < TOTAL_POSTS; i++) {
             const randomUser = insertedUsers[Math.floor(Math.random() * insertedUsers.length)];
             const hasImage = Math.random() > 0.4;
             
-            // 70% chance of using a theme, 30% random lorem
-            const text = Math.random() > 0.3 
-                ? THEMES[Math.floor(Math.random() * THEMES.length)] 
-                : faker.lorem.sentences(Math.floor(Math.random() * 2) + 1);
+            // Use 100% Vietnamese themes logic for better realism
+            const text = THEMES[Math.floor(Math.random() * THEMES.length)];
 
             const post = new Post({
                 user: randomUser._id,
                 text: text,
                 imgs: hasImage ? [`https://picsum.photos/seed/${faker.string.uuid()}/800/600`] : [],
-                hashtags: text.match(/#\w+/g)?.map(tag => tag.toLowerCase()) || [],
+                hashtags: text.match(/#\w+/g)?.map(tag => tag.substring(1).toLowerCase()) || [],
             });
             newPosts.push(post);
         }
         const insertedPosts = await Post.insertMany(newPosts);
         console.log(`✅ ${insertedPosts.length} Posts successfully inserted.`);
+
+        // Aggregate Hashtags
+        console.log("Aggregating Hashtags...");
+        const hashtagCounts = {};
+        insertedPosts.forEach(post => {
+            if (post.hashtags && post.hashtags.length > 0) {
+                post.hashtags.forEach(tag => {
+                    const t = tag.startsWith('#') ? tag : `#${tag}`;
+                    hashtagCounts[t] = (hashtagCounts[t] || 0) + 1;
+                });
+            }
+        });
+        
+        const newHashtags = Object.keys(hashtagCounts).map(tag => ({
+            text: tag.replace('#', ''),
+            count: hashtagCounts[tag]
+        }));
+
+        if (newHashtags.length > 0) {
+            await Hashtag.insertMany(newHashtags);
+            console.log(`✅ ${newHashtags.length} Hashtags successfully aggregated.`);
+        }
 
         // Generate Stories
         console.log(`Generating ${TOTAL_STORIES} random active stories...`);

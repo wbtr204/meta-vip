@@ -4,6 +4,8 @@ import User from "../models/user.model.js";
 import { getReceiverSocketId, io } from "../socket/socket.js";
 import { v2 as cloudinary } from "cloudinary";
 
+import Notification from "../models/notification.model.js";
+
 export const sendMessage = async (req, res) => {
 	try {
 		const { message } = req.body;

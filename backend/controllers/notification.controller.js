@@ -5,7 +5,11 @@ export const getUnreadCount = async (req, res) => {
 		const userId = req.user?._id;
 		if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-		const count = await Notification.countDocuments({ to: userId, read: false });
+		const count = await Notification.countDocuments({ 
+            to: userId, 
+            read: false,
+            type: { $ne: "message" } // Loại trừ thông báo tin nhắn
+        });
 		res.status(200).json({ count });
 	} catch (error) {
 		console.error("Error in getUnreadCount function:", error);
@@ -18,8 +22,12 @@ export const getNotifications = async (req, res) => {
 		const userId = req.user?._id;
         if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-		const notifications = await Notification.find({ to: userId })
+		const notifications = await Notification.find({ 
+            to: userId,
+            type: { $ne: "message" } // Loại trừ thông báo tin nhắn
+        })
             .sort({ createdAt: -1 })
+            .limit(100)
             .populate({
                 path: "from",
                 select: "username profileImg fullName",

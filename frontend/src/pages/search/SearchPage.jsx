@@ -70,14 +70,14 @@ const SearchPage = () => {
 				</div>
 			</div>
 
-			<div className="px-4 py-6 sm:px-6">
+			<div className="px-0 sm:px-6 py-4 sm:py-6">
 				{!query ? (
 					<div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
 						<motion.section
 							initial={{ opacity: 0, y: 12 }}
 							animate={{ opacity: 1, y: 0 }}
 							transition={{ duration: 0.25 }}
-							className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/70"
+							className="sm:rounded-3xl border-y sm:border border-slate-200/80 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/70"
 						>
 							<div className="flex items-center gap-2 text-slate-400">
 								<Search size={16} />
@@ -124,7 +124,7 @@ const SearchPage = () => {
 							initial={{ opacity: 0, y: 12 }}
 							animate={{ opacity: 1, y: 0 }}
 							transition={{ duration: 0.25, delay: 0.05 }}
-							className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/70"
+							className="sm:rounded-3xl border-y sm:border border-slate-200/80 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/70 mt-4 sm:mt-0"
 						>
 							<div className="flex items-center gap-2">
 								<Clock size={16} className="text-indigo-500" />
@@ -180,7 +180,7 @@ const SearchPage = () => {
 								initial={{ opacity: 0, y: 12 }}
 								animate={{ opacity: 1, y: 0 }}
 								transition={{ duration: 0.22 }}
-								className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/70"
+								className="overflow-hidden sm:rounded-3xl border-y sm:border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/70"
 							>
 								<div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-slate-800">
 									<div className="flex items-center gap-2">
@@ -248,7 +248,7 @@ const SearchPage = () => {
 								initial={{ opacity: 0, y: 12 }}
 								animate={{ opacity: 1, y: 0 }}
 								transition={{ duration: 0.22, delay: 0.04 }}
-								className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/70"
+								className="overflow-hidden sm:rounded-3xl border-y sm:border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/70"
 							>
 								<div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-slate-800">
 									<div className="flex items-center gap-2">
@@ -262,7 +262,7 @@ const SearchPage = () => {
 									</span>
 								</div>
 
-								<div className="p-5">
+								<div className="sm:p-5 p-0">
 									{isLoadingPosts ? (
 										<div className="space-y-4">
 											<PostSkeleton />

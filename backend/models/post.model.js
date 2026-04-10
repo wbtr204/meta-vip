@@ -34,6 +34,7 @@ const postSchema = new mongoose.Schema(
 				text: { type: String, required: true },
 				user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
 				parentId: { type: mongoose.Schema.Types.ObjectId }, // Để hỗ trợ bình luận lồng nhau (không Ref trực tiếp vào subdocument)
+				likes: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
 				createdAt: { type: Date, default: Date.now },
 			},
 		],

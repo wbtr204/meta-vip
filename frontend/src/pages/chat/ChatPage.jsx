@@ -198,7 +198,7 @@ const ChatPage = () => {
 
 	return (
 		<div className="flex flex-1 w-full h-full min-h-0 overflow-hidden">
-			<div className="grid w-full h-full min-h-0 overflow-hidden rounded-[32px] border border-slate-200/50 bg-white shadow-sm dark:border-slate-800/50 dark:bg-slate-950 md:grid-cols-[340px_minmax(0,1fr)]">
+			<div className="grid w-full h-full min-h-0 overflow-hidden sm:rounded-[32px] rounded-none border border-slate-200/50 bg-white shadow-sm dark:border-slate-800/50 dark:bg-slate-950 md:grid-cols-[340px_minmax(0,1fr)]">
 				<div className={`${selectedConversation ? "hidden md:block" : "block"} h-full min-h-0`}>
 					<ChatList
 						conversations={currentConversations}

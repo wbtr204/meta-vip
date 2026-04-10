@@ -162,13 +162,13 @@ const ChatList = ({
                                                 onClick={() => onSelect(conv)}
                                                 className={`flex items-center gap-4 px-5 py-4 transition-all hover:bg-slate-50 dark:hover:bg-slate-900/50 relative group ${
                                                     selectedId === conv.user._id ? "bg-slate-50 dark:bg-slate-900" : ""
-                                                }`}
+                                                } ${isUnread ? "bg-indigo-50/30 dark:bg-indigo-500/5" : ""}`}
                                             >
                                                 {selectedId === conv.user._id && (
                                                     <motion.div 
                                                         layoutId="activeChat"
                                                         className="absolute left-0 top-2 bottom-2 w-1 bg-indigo-500 rounded-r-full"
-                                                    />
+                                                     />
                                                 )}
                                                 <div className="relative">
                                                     <div className="w-12 h-12 rounded-full overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm transition-transform group-hover:scale-105">
@@ -181,25 +181,24 @@ const ChatList = ({
 
                                                 <div className="flex flex-col items-start flex-1 min-w-0">
                                                     <div className="flex items-center justify-between w-full mb-0.5">
-                                                        <span className={`text-[14px] font-bold truncate ${isUnread ? "text-slate-900 dark:text-white" : "text-slate-700 dark:text-slate-300"}`}>
+                                                        <span className={`text-[14px] truncate ${isUnread ? "text-slate-900 dark:text-white font-black" : "text-slate-700 dark:text-slate-300 font-bold"}`}>
                                                             {conv.user.fullName}
                                                         </span>
-                                                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                                                        <span className={`text-[10px] font-bold uppercase tracking-wider ${isUnread ? "text-indigo-500" : "text-slate-400"}`}>
                                                             {conv.updatedAt ? new Date(conv.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ""}
                                                         </span>
                                                     </div>
-                                                    <div className="flex items-center gap-1.5 w-full">
-                                                        <p className={`text-xs truncate flex-1 text-left ${isUnread ? "font-bold text-slate-800 dark:text-slate-200" : "text-slate-500 dark:text-slate-400"}`}>
+                                                    <div className="flex items-center gap-2 w-full">
+                                                        <p className={`text-xs truncate flex-1 text-left ${isUnread ? "font-bold text-slate-800 dark:text-slate-100" : "text-slate-500 dark:text-slate-400"}`}>
                                                             {conv.lastMessage ? (
                                                                 conv.lastMessage.senderId === authUser._id 
-                                                                ? <span className="opacity-60">Bạn: </span>
+                                                                ? <span className="opacity-60 font-medium">Bạn: </span>
                                                                 : ""
                                                             ) : ""}
                                                             {conv.lastMessage ? conv.lastMessage.message : "Bắt đầu cuộc trò chuyện..."}
                                                         </p>
                                                         {isUnread && (
-                                                            <div className="flex items-center justify-center min-w-[20px] h-5 px-1.5 bg-indigo-500 text-white text-[10px] font-black rounded-full shadow-[0_0_12px_rgba(99,102,241,0.4)] animate-in zoom-in duration-300">
-                                                                {conv.unreadCount > 9 ? "9+" : conv.unreadCount}
+                                                            <div className="flex items-center justify-center min-w-[10px] h-2.5 w-2.5 bg-indigo-500 rounded-full shadow-[0_0_10px_rgba(99,102,241,0.6)] animate-pulse">
                                                             </div>
                                                         )}
                                                     </div>

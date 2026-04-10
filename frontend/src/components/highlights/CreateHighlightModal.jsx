@@ -357,7 +357,10 @@ const CreateHighlightModal = ({
 									<button
 										type={step === 1 ? "button" : "submit"}
 										onClick={step === 1 ? handlePrimaryAction : undefined}
-										disabled={step === 1 && (!selectedStoryIds.length || !activeStories.length)}
+										disabled={
+											(step === 1 && (!selectedStoryIds.length || !activeStories.length)) || 
+											(step === 2 && !title.trim())
+										}
 										className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition-all hover:bg-indigo-600 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
 									>
 										{step === 1 ? "Tiếp tục" : mode === "edit" ? "Lưu thay đổi" : "Tạo nổi bật"}

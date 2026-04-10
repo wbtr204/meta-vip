@@ -55,12 +55,16 @@ const HomePage = () => {
     };
 
     return (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col gap-6">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col gap-0 sm:gap-6">
             {!isSavedView && <StoryBar />}
-            {!isSavedView && <CreatePost />}
+            {!isSavedView && (
+                <div className="hidden lg:block">
+                    <CreatePost />
+                </div>
+            )}
 
             {!isSavedView && (
-                <div className="flex items-center justify-between border-b border-slate-200/50 dark:border-slate-800/50 pb-4">
+                <div className="flex items-center justify-between border-b border-slate-200/50 dark:border-slate-800/50 pb-4 px-4 sm:px-0">
                     <div className="flex gap-6">
                         <button
                             onClick={() => {
@@ -109,7 +113,7 @@ const HomePage = () => {
                                     <LoadingSpinner size="lg" />
                                 </div>
                             ) : savedPosts?.length === 0 ? (
-                                <div className="flex flex-col items-center justify-center py-20 px-6 text-center bg-white dark:bg-slate-900/50 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800 shadow-sm">
+                                <div className="flex flex-col items-center justify-center py-20 px-6 text-center bg-white dark:bg-slate-950 sm:dark:bg-slate-900/50 sm:rounded-3xl rounded-none border-y sm:border border-dashed border-slate-200 dark:border-slate-800 shadow-sm">
                                     <div className="w-20 h-20 bg-indigo-500/10 rounded-full flex items-center justify-center mb-6 text-indigo-500">
                                         <Bookmark size={40} strokeWidth={1.5} fill="currentColor" />
                                     </div>
@@ -139,7 +143,7 @@ const HomePage = () => {
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
-                            className="flex flex-col items-center justify-center py-20 px-6 text-center bg-white dark:bg-slate-900/50 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800 shadow-sm"
+                            className="flex flex-col items-center justify-center py-20 px-6 text-center bg-white dark:bg-slate-950 sm:dark:bg-slate-900/50 sm:rounded-3xl rounded-none border-y sm:border border-dashed border-slate-200 dark:border-slate-800 shadow-sm"
                         >
                             <div className="w-20 h-20 bg-indigo-500/10 rounded-full flex items-center justify-center mb-6 text-indigo-500">
                                 <Users size={40} strokeWidth={1.5} />

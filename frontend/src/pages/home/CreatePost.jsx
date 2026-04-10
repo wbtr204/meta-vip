@@ -15,7 +15,7 @@ import {
     MapPinned
 } from "lucide-react";
 
-const CreatePost = () => {
+const CreatePost = ({ onPostSuccess, isModal = false }) => {
 	const [text, setText] = useState("");
 	const [imgs, setImgs] = useState([]);
     const [location, setLocation] = useState("");
@@ -79,6 +79,7 @@ const CreatePost = () => {
 				toast.success("Đã đăng bài viết thành công!");
 			}
 			queryClient.invalidateQueries({ queryKey: ["posts"] });
+            if (onPostSuccess) onPostSuccess();
 		},
 	});
 
@@ -115,7 +116,7 @@ const CreatePost = () => {
     };
 
 	return (
-		<section className="bg-white dark:bg-slate-900/80 rounded-2xl border border-slate-200/50 dark:border-slate-800/50 p-4 transition-all shadow-sm">
+		<section className={`${isModal ? "bg-transparent border-none p-0 shadow-none" : "bg-white dark:bg-slate-900/80 rounded-2xl border border-slate-200/50 dark:border-slate-800/50 p-4 shadow-sm"} transition-all`}>
 			<form onSubmit={handleSubmit} className="flex flex-col gap-4">
 				<div className="flex gap-4">
 					<div className="h-10 w-10 rounded-full overflow-hidden shrink-0 border border-slate-100 dark:border-slate-800">

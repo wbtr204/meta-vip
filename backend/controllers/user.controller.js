@@ -45,6 +45,14 @@ export const followUnfollowUser = async (req, res) => {
 			currentUser.following = currentUser.following.filter(fId => fId.toString() !== id.toString());
 			
 			await Promise.all([userToModify.save(), currentUser.save()]);
+
+			// Remove notifications when unfollow
+			await Notification.deleteMany({
+				from: req.user._id,
+				to: id,
+				type: { $in: ["follow", "follow_request", "follow_accept"] }
+			});
+
 			res.status(200).json({ message: "Đã bỏ theo dõi" });
 		} else {
 			if (userToModify.isPrivate) {
@@ -86,18 +94,30 @@ export const followUnfollowUser = async (req, res) => {
 				userToModify.followers.push(req.user._id);
 				currentUser.following.push(id);
 				
-				const newNotification = new Notification({
-					type: "follow",
+				await Promise.all([userToModify.save(), currentUser.save()]);
+
+				// Avoid duplicate notifications
+				const existingNotif = await Notification.findOne({
 					from: req.user._id,
 					to: id,
+					type: "follow",
+					read: false
 				});
 
-				await Promise.all([userToModify.save(), currentUser.save(), newNotification.save()]);
+				if (!existingNotif) {
+					const newNotification = new Notification({
+						type: "follow",
+						from: req.user._id,
+						to: id,
+					});
+					await newNotification.save();
 
-				const receiverSocketId = getReceiverSocketId(id);
-				if (receiverSocketId) {
-					io.to(receiverSocketId).emit("newNotification", newNotification);
+					const receiverSocketId = getReceiverSocketId(id);
+					if (receiverSocketId) {
+						io.to(receiverSocketId).emit("newNotification", newNotification);
+					}
 				}
+
 				res.status(200).json({ message: "Đã theo dõi thành công" });
 			}
 		}

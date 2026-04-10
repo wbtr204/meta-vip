@@ -58,52 +58,72 @@ const RightPanel = () => {
                 variants={containerVariants}
                 className="bg-white dark:bg-slate-900/50 border border-slate-200/50 dark:border-slate-800/50 rounded-[24px] overflow-hidden shadow-sm"
             >
-                {/* SECTION 1: TRENDING (THREADS STYLE) */}
-                <div className="p-5 pb-2">
-                    <div className="flex items-center justify-between mb-4 px-1">
-                        <h3 className="text-[13px] font-bold text-slate-900 dark:text-slate-100">Phân tích Xu hướng</h3>
-                        <span className="text-[9px] px-1.5 py-0.5 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-500 rounded-full font-bold uppercase tracking-tighter border border-indigo-100/50 dark:border-indigo-900/30">
-                            Data-Driven
-                        </span>
+                {/* SECTION 1: WHAT'S HAPPENING */}
+                <div className="py-4">
+                    <div className="flex items-center justify-between mb-2 px-5">
+                        <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Có gì mới?</h3>
                     </div>
                     <div className="flex flex-col">
                         {isTrendingLoading ? (
-                           <div className="space-y-4 px-1 pb-4">
+                           <div className="space-y-4 px-5 pb-4 mt-2">
                                {[1, 2, 3].map(i => (
-                                   <div key={i} className="animate-pulse flex items-center gap-3">
-                                       <div className="w-4 h-4 bg-slate-100 dark:bg-slate-800 rounded" />
-                                       <div className="flex-1 space-y-2">
-                                           <div className="h-3 bg-slate-100 dark:bg-slate-800 rounded w-3/4" />
-                                           <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded w-1/2" />
-                                       </div>
+                                   <div key={i} className="animate-pulse flex flex-col gap-2">
+                                       <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded w-1/4" />
+                                       <div className="h-3 bg-slate-100 dark:bg-slate-800 rounded w-3/4" />
+                                       <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded w-1/3" />
                                    </div>
                                ))}
                            </div>
                         ) : (
-                            trendingHashtags?.slice(0, 5).map((tag, index) => (
-                                <motion.div key={tag._id} variants={itemVariants}>
-                                    <Link
-                                        to={`/search?q=${encodeURIComponent(tag.text)}`}
-                                        className="flex items-center gap-4 py-3 px-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-xl transition-all duration-200 group"
-                                    >
-                                        <span className="text-[14px] font-medium text-slate-400 tabular-nums w-4">
-                                            {index + 1}
-                                        </span>
-                                        <div className="flex flex-col min-w-0">
-                                            <span className="text-[14px] font-semibold text-slate-900 dark:text-slate-100 group-hover:text-indigo-500 transition-colors truncate">
-                                                #{tag.text}
-                                            </span>
-                                            <span className="text-[12px] text-slate-500 dark:text-slate-500">
-                                                {tag.count > 1000 ? `${(tag.count / 1000).toFixed(1)}k` : tag.count} bài đăng
-                                            </span>
-                                        </div>
+                            <>
+                                {trendingHashtags?.slice(0, 5).map((tag, index) => {
+                                    // Phân loại thông minh dựa trên từ khóa của hashtag
+                                    const tagText = tag.text.toLowerCase();
+                                    let category = "Đang thịnh hành";
+                                    
+                                    if (tagText.includes("congnghe") || tagText.includes("tech") || tagText.includes("react") || tagText.includes("ai") || tagText.match(/cntt|cyber|update/)) category = "Công nghệ";
+                                    else if (tagText.includes("giaitri") || tagText.includes("phim") || tagText.includes("music") || tagText.match(/anime|gaming|concert/)) category = "Giải trí";
+                                    else if (tagText.includes("doisong") || tagText.includes("hoctap") || tagText.includes("khoaluan") || tagText.match(/tips|study|job/)) category = "Đời sống";
+                                    else if (tagText.includes("khampha") || tagText.includes("travel") || tagText.match(/cafe|dalat|food/)) category = "Khám phá";
+                                    else if (tagText.includes("tinnong") || tagText.includes("giaothong") || tagText.includes("thoitiet") || tagText.match(/tuyendung/)) category = "Tin nóng";
+                                    
+                                    return (
+                                        <motion.div key={tag._id} variants={itemVariants}>
+                                            <Link
+                                                to={`/search?q=${encodeURIComponent('#' + tag.text)}`}
+                                                className="flex items-start justify-between py-3 px-5 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors duration-200 group relative"
+                                            >
+                                                <div className="flex flex-col min-w-0 pr-4">
+                                                    <div className="flex items-center gap-1.5 mb-0.5">
+                                                        <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400 truncate">
+                                                            {index === 0 && category === "Đang thịnh hành" ? "Thịnh hành toàn cầu" : `${category} · Nổi bật`}
+                                                        </span>
+                                                    </div>
+                                                    <span className="text-[15px] font-extrabold text-slate-900 dark:text-slate-100 group-hover:text-indigo-500 transition-colors truncate">
+                                                        #{tag.text}
+                                                    </span>
+                                                    <span className="text-[12px] text-slate-500 dark:text-slate-400 mt-0.5">
+                                                        {tag.count > 1000 ? `${(tag.count / 1000).toFixed(1)}K` : tag.count} bài đăng
+                                                    </span>
+                                                </div>
+                                                <div className="shrink-0 flex items-center justify-center w-8 h-8 rounded-full hover:bg-indigo-50 dark:hover:bg-indigo-500/10 text-slate-400 hover:text-indigo-500 -mr-2 transition-colors opacity-0 group-hover:opacity-100"
+                                                     onClick={(e) => { e.preventDefault(); }}
+                                                >
+                                                    <span className="material-symbols-outlined text-[18px]">more_horiz</span>
+                                                </div>
+                                            </Link>
+                                        </motion.div>
+                                    );
+                                })}
+                                {!isTrendingLoading && trendingHashtags?.length > 0 && (
+                                    <Link to="/explore" className="block px-5 py-3.5 text-[14px] text-indigo-500 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                                        Hiện thêm
                                     </Link>
-                                    {index < 4 && <div className="mx-4 border-b border-slate-100/50 dark:border-slate-800/30" />}
-                                </motion.div>
-                            ))
+                                )}
+                            </>
                         )}
                         {!isTrendingLoading && trendingHashtags?.length === 0 && (
-                            <p className="text-xs text-slate-400 p-4 pt-0">Hiện chưa có xu hướng nào.</p>
+                            <p className="text-xs text-slate-400 p-5 pt-0">Hiện chưa có xu hướng nào.</p>
                         )}
                     </div>
                 </div>

@@ -58,12 +58,18 @@ const Posts = ({ feedType, username, userId, onDataLoad }) => {
 	useEffect(() => {
 		if (!posts) return;
 
-		if (page === 1) {
-			setAllPosts(posts);
-			onDataLoad?.(posts.length);
-		} else {
-			setAllPosts((prev) => [...prev, ...posts]);
-		}
+		setAllPosts((prev) => {
+			if (page === 1) return posts;
+            
+            // Merge new posts with existing ones, avoiding duplicates by filtering IDs
+            const prevIds = new Set(prev.map(p => p._id));
+            const newPosts = posts.filter(p => !prevIds.has(p._id));
+			return [...prev, ...newPosts];
+		});
+
+        if (page === 1) {
+            onDataLoad?.(posts.length);
+        }
 
 		if (posts.length < limit) {
 			setHasMore(false);
