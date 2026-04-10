@@ -15,7 +15,11 @@ const notificationSchema = new mongoose.Schema(
 		type: {
 			type: String,
 			required: true,
-			enum: ["follow", "like"],
+			enum: ["follow", "like", "comment", "mention", "system", "follow_request", "follow_accept"],
+		},
+		postId: {
+			type: mongoose.Schema.Types.ObjectId,
+			ref: "Post",
 		},
 		read: {
 			type: Boolean,
@@ -24,6 +28,8 @@ const notificationSchema = new mongoose.Schema(
 	},
 	{ timestamps: true }
 );
+
+notificationSchema.index({ to: 1, createdAt: -1 });
 
 const Notification = mongoose.model("Notification", notificationSchema);
 

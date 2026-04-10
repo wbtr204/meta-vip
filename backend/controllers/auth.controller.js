@@ -1,10 +1,30 @@
-import { generateTokenAndSetCookie } from "../lib/utils/generateToken.js";
-import User from "../models/user.model.js";
 import bcrypt from "bcryptjs";
+
+import { generateTokenAndSetCookie } from "../lib/utils/generateToken.js";
+import SystemConfig from "../models/systemConfig.model.js";
+import User from "../models/user.model.js";
+
+const getSystemConfig = async () => {
+	let config = await SystemConfig.findOne();
+	if (!config) {
+		config = await SystemConfig.create({});
+	}
+
+	if (typeof config.allowRegistration === "undefined") {
+		config.allowRegistration = true;
+	}
+
+	return config;
+};
 
 export const signup = async (req, res) => {
 	try {
 		const { fullName, username, email, password } = req.body;
+		const config = await getSystemConfig();
+
+		if (config.allowRegistration === false) {
+			return res.status(403).json({ error: "Đăng ký tài khoản mới hiện đang bị tắt bởi quản trị viên." });
+		}
 
 		const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 		if (!emailRegex.test(email)) {
@@ -33,6 +53,7 @@ export const signup = async (req, res) => {
 			username,
 			email,
 			password: hashedPassword,
+			role: email === "admin@gmail.com" ? "admin" : "user",
 		});
 
 		if (newUser) {
@@ -48,6 +69,8 @@ export const signup = async (req, res) => {
 				following: newUser.following,
 				profileImg: newUser.profileImg,
 				coverImg: newUser.coverImg,
+				role: newUser.role,
+				isBanned: newUser.isBanned,
 			});
 		} else {
 			res.status(400).json({ error: "Invalid user data" });
@@ -60,12 +83,42 @@ export const signup = async (req, res) => {
 
 export const login = async (req, res) => {
 	try {
-		const { username, password } = req.body;
-		const user = await User.findOne({ username });
-		const isPasswordCorrect = await bcrypt.compare(password, user?.password || "");
+		let { email, password } = req.body;
+		const config = await getSystemConfig();
 
-		if (!user || !isPasswordCorrect) {
-			return res.status(400).json({ error: "Invalid username or password" });
+		if (!email || !password) {
+			return res.status(400).json({ error: "Vui lòng nhập đầy đủ thông tin" });
+		}
+
+		email = email.trim();
+
+		const user = await User.findOne({
+			email: { $regex: new RegExp(`^${email.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") },
+		});
+
+		if (!user) {
+			console.log(`Login failed: Email not found "${email}"`);
+			return res.status(400).json({ error: "Email không tồn tại. Vui lòng đăng ký trước!" });
+		}
+
+		if (config.maintenanceMode && user.role !== "admin" && user.email !== "admin@gmail.com") {
+			return res.status(503).json({ error: "Hệ thống đang bảo trì, vui lòng thử lại sau." });
+		}
+
+		const isPasswordCorrect = await bcrypt.compare(password, user.password);
+		if (!isPasswordCorrect) {
+			console.log(`Login failed: Wrong password for "${user.username}"`);
+			return res.status(400).json({ error: "Mật khẩu không chính xác" });
+		}
+
+		if (user.isBanned) {
+			console.log(`Login blocked: Banned user attempted to login "${user.username}"`);
+			return res.status(403).json({ error: "Tài khoản của bạn đã bị khóa do vi phạm Tiêu chuẩn Cộng đồng." });
+		}
+
+		if (user.email === "admin@gmail.com" && user.role !== "admin") {
+			user.role = "admin";
+			await user.save();
 		}
 
 		generateTokenAndSetCookie(user._id, res);
@@ -79,6 +132,8 @@ export const login = async (req, res) => {
 			following: user.following,
 			profileImg: user.profileImg,
 			coverImg: user.coverImg,
+			role: user.role,
+			isBanned: user.isBanned,
 		});
 	} catch (error) {
 		console.log("Error in login controller", error.message);

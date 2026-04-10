@@ -1,178 +1,367 @@
 import Notification from "../models/notification.model.js";
 import Post from "../models/post.model.js";
 import User from "../models/user.model.js";
+import Hashtag from "../models/hashtag.model.js";
 import { v2 as cloudinary } from "cloudinary";
+import { extractKeywords } from "../utils/keywordExtractor.js";
+import { formatModerationReasons, moderateContent } from "../utils/contentModeration.js";
+import { getReceiverSocketId, io } from "../socket/socket.js";
+
+const MODERATION_APPROVED = "approved";
+const MODERATION_FLAGGED = "flagged";
+
+const getDocId = (value) => value?._id?.toString?.() || value?.toString?.() || "";
+
+const isApprovedPost = (post) => !post?.moderation?.status || post.moderation.status === MODERATION_APPROVED;
+
+const isVisibleToViewer = (post, viewer, { allowModeratedForOwner = false } = {}) => {
+	if (!post) return false;
+
+	const viewerId = getDocId(viewer);
+	const postOwnerId = getDocId(post.user);
+	const viewerIsOwner = viewerId && postOwnerId && viewerId === postOwnerId;
+	const viewerIsAdmin = viewer?.role === "admin" || viewer?.email === "admin@gmail.com";
+
+	if (viewerIsAdmin) return true;
+	if (allowModeratedForOwner && viewerIsOwner) return true;
+	if (!isApprovedPost(post)) return false;
+
+	const repostStatus = post.repostOf?.moderation?.status;
+	if (post.repostOf && repostStatus && repostStatus !== MODERATION_APPROVED) {
+		return false;
+	}
+
+	return true;
+};
+
+const filterVisiblePosts = (posts = [], viewer, options) => posts.filter((post) => isVisibleToViewer(post, viewer, options));
+
+const buildModerationPayload = (moderation) => ({
+	status: moderation.flagged ? MODERATION_FLAGGED : MODERATION_APPROVED,
+	reasons: moderation.reasons,
+	score: moderation.score,
+	autoFlagged: moderation.flagged,
+});
+
+const PUBLIC_POST_FILTER = {
+	$or: [{ "moderation.status": { $exists: false } }, { "moderation.status": MODERATION_APPROVED }],
+};
 
 export const createPost = async (req, res) => {
 	try {
-		const { text } = req.body;
-		let { img } = req.body;
-		const userId = req.user._id.toString();
+		const { text, imgs, video, location } = req.body;
+		const userId = req.user._id;
 
-		const user = await User.findById(userId);
-		if (!user) return res.status(404).json({ message: "User not found" });
+        const user = await User.findById(userId);
+        if (!user) return res.status(404).json({ message: "User not found" });
 
-		if (!text && !img) {
-			return res.status(400).json({ error: "Post must have text or image" });
+		if (!text && (!imgs || imgs.length === 0) && !video) {
+			return res.status(400).json({ error: "Post must have text, image, or video" });
 		}
 
-		if (img) {
-			const uploadedResponse = await cloudinary.uploader.upload(img);
-			img = uploadedResponse.secure_url;
+		const moderation = moderateContent([text, location].filter(Boolean).join(" "));
+		if (moderation.blocked) {
+			return res.status(400).json({
+				error: `Bài viết bị chặn do kiểm duyệt: ${formatModerationReasons(moderation.reasons).join(", ")}`,
+			});
 		}
 
-		const newPost = new Post({
-			user: userId,
-			text,
-			img,
-		});
+		const uploadResource = async (resource, resourceType = "image") => {
+			if (!resource) return null;
+            const uploaded = await cloudinary.uploader.upload(resource, { resource_type: resourceType });
+            return uploaded.secure_url;
+        };
 
-		await newPost.save();
-		res.status(201).json(newPost);
-	} catch (error) {
-		res.status(500).json({ error: "Internal server error" });
-		console.log("Error in createPost controller: ", error);
-	}
+        // Upload multiple images in parallel
+        const uploadedImgs = imgs?.length > 0 
+            ? await Promise.all(imgs.map(img => uploadResource(img))) 
+            : [];
+            
+        const uploadedVideo = await uploadResource(video, "video");
+
+        // Extract hashtags
+        const extractedHashtags = text ? text.match(/#\w+/g)?.map(tag => tag.toLowerCase()) || [] : [];
+
+        const newPost = await Post.create({
+            user: userId,
+            text,
+            imgs: uploadedImgs,
+            video: uploadedVideo,
+            location,
+            hashtags: extractedHashtags,
+            moderation: buildModerationPayload(moderation),
+        });
+
+		if (extractedHashtags.length > 0 || text) {
+            const allKeywords = [...new Set([...extractedHashtags, ...extractKeywords(text)])];
+            
+            if (allKeywords.length > 0) {
+                await Promise.all(
+                    allKeywords.map(async (tag) => {
+                        // We filter for basic relevance (not just random letters)
+                        if (tag.length > 2) {
+                            await Hashtag.updateOne(
+                                { text: tag }, 
+                                { $inc: { count: 1 } }, 
+                                { upsert: true }
+                            );
+                        }
+                    })
+                );
+            }
+		}
+
+        res.status(201).json(newPost);
+    } catch (error) {
+        console.error("Error in createPost controller: ", error);
+        res.status(500).json({ error: "Internal server error" });
+    }
 };
 
 export const deletePost = async (req, res) => {
-	try {
-		const post = await Post.findById(req.params.id);
-		if (!post) {
-			return res.status(404).json({ error: "Post not found" });
-		}
+    try {
+        const { id: postId } = req.params;
+        const userId = req.user._id;
 
-		if (post.user.toString() !== req.user._id.toString()) {
-			return res.status(401).json({ error: "You are not authorized to delete this post" });
-		}
+        const post = await Post.findById(postId);
+        if (!post) return res.status(404).json({ error: "Post not found" });
 
-		if (post.img) {
-			const imgId = post.img.split("/").pop().split(".")[0];
-			await cloudinary.uploader.destroy(imgId);
-		}
+        if (post.user.toString() !== userId.toString()) {
+            return res.status(401).json({ error: "Unauthorized to delete this post" });
+        }
 
-		await Post.findByIdAndDelete(req.params.id);
+        const destroyResource = async (url, resourceType = "image") => {
+            if (!url) return;
+            const resourceId = url.split("/").pop().split(".")[0];
+            await cloudinary.uploader.destroy(resourceId, { resource_type: resourceType });
+        };
 
-		res.status(200).json({ message: "Post deleted successfully" });
-	} catch (error) {
-		console.log("Error in deletePost controller: ", error);
-		res.status(500).json({ error: "Internal server error" });
-	}
+        await destroyResource(post.img);
+        await destroyResource(post.video, "video");
+        
+        await Post.findByIdAndDelete(postId);
+
+        res.status(200).json({ message: "Post deleted successfully" });
+    } catch (error) {
+        console.error("Error in deletePost controller: ", error);
+        res.status(500).json({ error: "Internal server error" });
+    }
 };
 
 export const commentOnPost = async (req, res) => {
 	try {
-		const { text } = req.body;
-		const postId = req.params.id;
+		const { text, parentId } = req.body;
+		const { id: postId } = req.params;
 		const userId = req.user._id;
 
-		if (!text) {
-			return res.status(400).json({ error: "Text field is required" });
+		if (!text) return res.status(400).json({ error: "Text field is required" });
+		const moderation = moderateContent(text);
+		if (moderation.blocked || moderation.flagged) {
+			return res.status(400).json({
+				error: `Bình luận bị chặn do kiểm duyệt: ${formatModerationReasons(moderation.reasons).join(", ")}`,
+			});
 		}
+
 		const post = await Post.findById(postId);
+		if (!post) return res.status(404).json({ error: "Post not found" });
 
-		if (!post) {
-			return res.status(404).json({ error: "Post not found" });
+        post.comments.push({ user: userId, text, parentId: parentId || null });
+        await post.save();
+
+        if (post.user.toString() !== userId.toString()) {
+            const notification = await Notification.create({
+                from: userId,
+                to: post.user,
+                type: "comment",
+                postId: postId,
+            });
+
+            const receiverSocketId = getReceiverSocketId(post.user);
+            if (receiverSocketId) {
+                io.to(receiverSocketId).emit("newNotification", notification);
+            }
+        }
+
+        res.status(200).json(post);
+    } catch (error) {
+        console.error("Error in commentOnPost controller: ", error);
+        res.status(500).json({ error: "Internal server error" });
+    }
+};
+
+export const deleteComment = async (req, res) => {
+	try {
+		const { postId, commentId } = req.params;
+		const userId = req.user._id;
+
+		const post = await Post.findById(postId);
+		if (!post) return res.status(404).json({ error: "Post not found" });
+
+		const comment = post.comments.id(commentId);
+		if (!comment) return res.status(404).json({ error: "Comment not found" });
+
+		// Check if user is the author of the comment OR the author of the post
+		if (comment.user.toString() !== userId.toString() && post.user.toString() !== userId.toString()) {
+			return res.status(401).json({ error: "You are not authorized to delete this comment" });
 		}
 
-		const comment = { user: userId, text };
-
-		post.comments.push(comment);
+		post.comments.pull(commentId);
 		await post.save();
 
-		res.status(200).json(post);
+		res.status(200).json({ message: "Comment deleted successfully", post });
 	} catch (error) {
-		console.log("Error in commentOnPost controller: ", error);
+		console.error("Error in deleteComment controller: ", error);
 		res.status(500).json({ error: "Internal server error" });
 	}
 };
 
 export const likeUnlikePost = async (req, res) => {
-	try {
-		const userId = req.user._id;
-		const { id: postId } = req.params;
+    try {
+        const userId = req.user._id;
+        const { id: postId } = req.params;
+        const { type } = req.body; // like, love, haha, wow, sad, angry
 
-		const post = await Post.findById(postId);
+        const post = await Post.findById(postId);
+        if (!post) return res.status(404).json({ error: "Post not found" });
 
-		if (!post) {
-			return res.status(404).json({ error: "Post not found" });
-		}
+        const existingReactionIndex = post.reactions.findIndex((r) => r.user.toString() === userId.toString());
 
-		const userLikedPost = post.likes.includes(userId);
+        if (existingReactionIndex !== -1) {
+            const existingType = post.reactions[existingReactionIndex].type;
+            
+            if (existingType === type || !type) {
+                // Remove reaction if same type or no type provided (legacy like button)
+                post.reactions.splice(existingReactionIndex, 1);
+                await post.save();
+                await User.updateOne({ _id: userId }, { $pull: { likedPosts: postId } });
+                res.status(200).json(post.reactions);
+            } else {
+                // Update reaction type
+                post.reactions[existingReactionIndex].type = type;
+                await post.save();
+                res.status(200).json(post.reactions);
+            }
+        } else {
+            // Add new reaction
+            post.reactions.push({ user: userId, type: type || "like" });
+            await post.save();
+            await User.updateOne({ _id: userId }, { $push: { likedPosts: postId } });
 
-		if (userLikedPost) {
-			// Unlike post
-			await Post.updateOne({ _id: postId }, { $pull: { likes: userId } });
-			await User.updateOne({ _id: userId }, { $pull: { likedPosts: postId } });
+            if (post.user.toString() !== userId.toString()) {
+                await Notification.create({
+                    from: userId,
+                    to: post.user,
+                    type: "like",
+                    postId: postId,
+                });
 
-			const updatedLikes = post.likes.filter((id) => id.toString() !== userId.toString());
-			res.status(200).json(updatedLikes);
-		} else {
-			// Like post
-			post.likes.push(userId);
-			await User.updateOne({ _id: userId }, { $push: { likedPosts: postId } });
-			await post.save();
-
-			const notification = new Notification({
-				from: userId,
-				to: post.user,
-				type: "like",
-			});
-			await notification.save();
-
-			const updatedLikes = post.likes;
-			res.status(200).json(updatedLikes);
-		}
-	} catch (error) {
-		console.log("Error in likeUnlikePost controller: ", error);
-		res.status(500).json({ error: "Internal server error" });
-	}
+                const receiverSocketId = getReceiverSocketId(post.user);
+                if (receiverSocketId) {
+                    io.to(receiverSocketId).emit("newNotification", {
+                        from: userId,
+                        type: "like",
+                        postId: postId
+                    });
+                }
+            }
+            res.status(200).json(post.reactions);
+        }
+    } catch (error) {
+        console.error("Error in likeUnlikePost controller: ", error);
+        res.status(500).json({ error: "Internal server error" });
+    }
 };
 
 export const getAllPosts = async (req, res) => {
 	try {
-		const posts = await Post.find()
+		const page = parseInt(req.query.page) || 1;
+		const limit = parseInt(req.query.limit) || 10;
+		const skip = (page - 1) * limit;
+
+		const posts = await Post.find(PUBLIC_POST_FILTER)
 			.sort({ createdAt: -1 })
+			.skip(skip)
+			.limit(limit)
+			.populate("user", "-password")
+			.populate("comments.user", "-password")
 			.populate({
-				path: "user",
-				select: "-password",
-			})
-			.populate({
-				path: "comments.user",
-				select: "-password",
+				path: "repostOf",
+				populate: {
+					path: "user",
+					select: "-password",
+				},
 			});
 
-		if (posts.length === 0) {
-			return res.status(200).json([]);
+		// Filter out posts with deleted users
+		res.status(200).json(filterVisiblePosts(posts.filter((post) => post.user !== null), req.user));
+	} catch (error) {
+		console.error("Error in getAllPosts controller: ", error);
+		res.status(500).json({ error: "Internal server error" });
+	}
+};
+
+export const getPost = async (req, res) => {
+	try {
+		const { id } = req.params;
+		const post = await Post.findById(id)
+			.populate("user", "-password")
+			.populate("comments.user", "-password")
+			.populate({
+				path: "repostOf",
+				populate: {
+					path: "user",
+					select: "-password",
+				},
+			});
+
+		if (!post) {
+			return res.status(404).json({ error: "Bài viết không tồn tại" });
 		}
 
-		res.status(200).json(posts);
+		if (!isVisibleToViewer(post, req.user, { allowModeratedForOwner: true })) {
+			return res.status(404).json({ error: "Bài viết không tồn tại" });
+		}
+
+		res.status(200).json(post);
 	} catch (error) {
-		console.log("Error in getAllPosts controller: ", error);
+		console.error("Error in getPost controller: ", error);
 		res.status(500).json({ error: "Internal server error" });
 	}
 };
 
 export const getLikedPosts = async (req, res) => {
-	const userId = req.params.id;
-
 	try {
+		const { id: userId } = req.params;
+		const page = parseInt(req.query.page) || 1;
+		const limit = parseInt(req.query.limit) || 10;
+		const skip = (page - 1) * limit;
+
 		const user = await User.findById(userId);
 		if (!user) return res.status(404).json({ error: "User not found" });
 
-		const likedPosts = await Post.find({ _id: { $in: user.likedPosts } })
+		const isMyProfile = req.user._id.toString() === userId.toString();
+		const amIFollowing = user.followers.includes(req.user._id);
+
+		if (user.isPrivate && !isMyProfile && !amIFollowing) {
+			return res.status(200).json([]); // Return empty list if private and not following
+		}
+
+		const likedPosts = await Post.find({ _id: { $in: user.likedPosts }, ...PUBLIC_POST_FILTER })
+			.skip(skip)
+			.limit(limit)
+			.populate("user", "-password")
+			.populate("comments.user", "-password")
 			.populate({
-				path: "user",
-				select: "-password",
-			})
-			.populate({
-				path: "comments.user",
-				select: "-password",
+				path: "repostOf",
+				populate: {
+					path: "user",
+					select: "-password",
+				},
 			});
 
-		res.status(200).json(likedPosts);
+		res.status(200).json(filterVisiblePosts(likedPosts.filter((post) => post.user !== null), req.user));
 	} catch (error) {
-		console.log("Error in getLikedPosts controller: ", error);
+		console.error("Error in getLikedPosts controller: ", error);
 		res.status(500).json({ error: "Internal server error" });
 	}
 };
@@ -180,50 +369,327 @@ export const getLikedPosts = async (req, res) => {
 export const getFollowingPosts = async (req, res) => {
 	try {
 		const userId = req.user._id;
+		const page = parseInt(req.query.page) || 1;
+		const limit = parseInt(req.query.limit) || 10;
+		const skip = (page - 1) * limit;
+
 		const user = await User.findById(userId);
-		if (!user) return res.status(404).json({ error: "User not found" });
+		if (!user) return res.status(404).json({ error: "Người dùng không tồn tại" });
 
-		const following = user.following;
+        const following = user.following || [];
 
-		const feedPosts = await Post.find({ user: { $in: following } })
+		const feedPosts = await Post.find({
+            user: { $in: following },
+            ...PUBLIC_POST_FILTER,
+        })
 			.sort({ createdAt: -1 })
+			.skip(skip)
+			.limit(limit)
+			.populate("user", "-password")
+			.populate("comments.user", "-password")
 			.populate({
-				path: "user",
-				select: "-password",
-			})
-			.populate({
-				path: "comments.user",
-				select: "-password",
+				path: "repostOf",
+				populate: {
+					path: "user",
+					select: "-password",
+				},
 			});
 
-		res.status(200).json(feedPosts);
+		res.status(200).json(filterVisiblePosts(feedPosts.filter((post) => post.user !== null), req.user));
 	} catch (error) {
-		console.log("Error in getFollowingPosts controller: ", error);
-		res.status(500).json({ error: "Internal server error" });
+		console.error("Error in getFollowingPosts controller: ", error);
+		res.status(500).json({ error: "Lỗi máy chủ khi lấy bảng tin theo dõi" });
 	}
 };
 
 export const getUserPosts = async (req, res) => {
 	try {
 		const { username } = req.params;
+		const page = parseInt(req.query.page) || 1;
+		const limit = parseInt(req.query.limit) || 10;
+		const skip = (page - 1) * limit;
 
 		const user = await User.findOne({ username });
 		if (!user) return res.status(404).json({ error: "User not found" });
 
-		const posts = await Post.find({ user: user._id })
+		const isMyProfile = req.user._id.toString() === user._id.toString();
+		const amIFollowing = user.followers.includes(req.user._id);
+
+		if (user.isPrivate && !isMyProfile && !amIFollowing) {
+			return res.status(200).json([]); // Return empty list if private and not following
+		}
+
+		const userPostFilter = isMyProfile || req.user.role === "admin" || req.user.email === "admin@gmail.com"
+			? { user: user._id }
+			: { user: user._id, ...PUBLIC_POST_FILTER };
+
+		const posts = await Post.find(userPostFilter)
 			.sort({ createdAt: -1 })
+			.skip(skip)
+			.limit(limit)
+			.populate("user", "-password")
+			.populate("comments.user", "-password")
 			.populate({
-				path: "user",
-				select: "-password",
-			})
-			.populate({
-				path: "comments.user",
-				select: "-password",
+				path: "repostOf",
+				populate: {
+					path: "user",
+					select: "-password",
+				},
 			});
 
-		res.status(200).json(posts);
+		res.status(200).json(filterVisiblePosts(posts.filter((post) => post.user !== null), req.user, { allowModeratedForOwner: true }));
 	} catch (error) {
-		console.log("Error in getUserPosts controller: ", error);
+		console.error("Error in getUserPosts controller: ", error);
 		res.status(500).json({ error: "Internal server error" });
 	}
+};
+
+export const searchPosts = async (req, res) => {
+	try {
+		const { q } = req.query;
+		if (!q) return res.status(400).json({ error: "Query is required" });
+
+		const posts = await Post.find({
+			text: { $regex: q, $options: "i" },
+			...PUBLIC_POST_FILTER,
+		})
+			.sort({ createdAt: -1 })
+			.populate("user", "-password")
+			.populate("comments.user", "-password")
+			.populate({
+				path: "repostOf",
+				populate: {
+					path: "user",
+					select: "-password",
+				},
+			})
+			.limit(20);
+
+		res.status(200).json(filterVisiblePosts(posts.filter((post) => post.user !== null), req.user));
+	} catch (error) {
+		console.error("Error in searchPosts controller: ", error);
+		res.status(500).json({ error: "Internal server error" });
+	}
+};
+
+export const editPost = async (req, res) => {
+	try {
+		const { text } = req.body;
+		let { img } = req.body;
+		const { id: postId } = req.params;
+		const userId = req.user._id;
+
+		let post = await Post.findById(postId);
+		if (!post) return res.status(404).json({ error: "Post not found" });
+
+		if (post.user.toString() !== userId.toString()) {
+			return res.status(401).json({ error: "You are not authorized to edit this post" });
+		}
+
+		if (typeof text === "string" && text.trim()) {
+			const moderation = moderateContent([text, post.location].filter(Boolean).join(" "));
+			if (moderation.blocked) {
+				return res.status(400).json({
+					error: `Bài viết bị chặn do kiểm duyệt: ${formatModerationReasons(moderation.reasons).join(", ")}`,
+				});
+			}
+
+			post.moderation = buildModerationPayload(moderation);
+		}
+
+		if (img && img !== post.img) {
+			if (post.img) {
+				await cloudinary.uploader.destroy(post.img.split("/").pop().split(".")[0]);
+			}
+			const uploadedResponse = await cloudinary.uploader.upload(img);
+			img = uploadedResponse.secure_url;
+		}
+
+		post.text = text || post.text;
+		post.img = img || post.img;
+
+		await post.save();
+
+		res.status(200).json(post);
+	} catch (error) {
+		console.error("Error in editPost controller: ", error);
+		res.status(500).json({ error: "Internal server error" });
+	}
+};
+
+export const bookmarkPost = async (req, res) => {
+	try {
+		const userId = req.user._id;
+		const { id: postId } = req.params;
+
+		const user = await User.findById(userId);
+		if (!user) return res.status(404).json({ error: "User not found" });
+
+		const isBookmarked = user.bookmarks.includes(postId);
+
+		if (isBookmarked) {
+			// Unbookmark
+			await User.updateOne({ _id: userId }, { $pull: { bookmarks: postId } });
+			res.status(200).json({ message: "Post unbookmarked successfully" });
+		} else {
+			// Bookmark
+			user.bookmarks.push(postId);
+			await user.save();
+			res.status(200).json({ message: "Post bookmarked successfully" });
+		}
+	} catch (error) {
+		console.error("Error in bookmarkPost controller: ", error);
+		res.status(500).json({ error: "Internal server error" });
+	}
+};
+
+export const getBookmarks = async (req, res) => {
+	try {
+		const userId = req.user._id;
+		const user = await User.findById(userId).populate({
+			path: "bookmarks",
+			populate: [
+				{
+					path: "user",
+					select: "-password",
+				},
+				{
+					path: "repostOf",
+					populate: {
+						path: "user",
+						select: "-password",
+					},
+				},
+			],
+		});
+
+		if (!user) return res.status(404).json({ error: "User not found" });
+
+		res.status(200).json(filterVisiblePosts(user.bookmarks.filter((post) => post.user !== null), req.user));
+	} catch (error) {
+		console.error("Error in getBookmarks controller: ", error);
+		res.status(500).json({ error: "Internal server error" });
+	}
+};
+
+export const repostPost = async (req, res) => {
+	try {
+		const userId = req.user._id;
+		const { id: postId } = req.params;
+
+		const post = await Post.findById(postId);
+		if (!post) return res.status(404).json({ error: "Post not found" });
+
+		if (!isApprovedPost(post) && post.user.toString() !== userId.toString() && req.user.role !== "admin" && req.user.email !== "admin@gmail.com") {
+			return res.status(403).json({ error: "Bài viết này đang được kiểm duyệt" });
+		}
+
+		const alreadyReposted = post.reposts.includes(userId);
+
+		if (alreadyReposted) {
+			// Remove repost
+			await Post.updateOne({ _id: postId }, { $pull: { reposts: userId } });
+			// Find and delete the reposted post instance
+			await Post.findOneAndDelete({ user: userId, repostOf: postId });
+			res.status(200).json({ message: "Post un-reposted successfully" });
+		} else {
+			// Add repost
+			post.reposts.push(userId);
+			await post.save();
+
+			const newRepost = new Post({
+				user: userId,
+				repostOf: postId,
+			});
+
+			await newRepost.save();
+
+			// Notification to original post owner
+			if (post.user.toString() !== userId.toString()) {
+				const notification = await Notification.create({
+					from: userId,
+					to: post.user,
+					type: "like", // Reuse 'like' type or add 'repost' if needed. Let's stick to simple types for now or add 'repost'
+				});
+
+				const receiverSocketId = getReceiverSocketId(post.user);
+				if (receiverSocketId) {
+					io.to(receiverSocketId).emit("newNotification", notification);
+				}
+			}
+
+			res.status(201).json(newRepost);
+		}
+	} catch (error) {
+		console.error("Error in repostPost controller: ", error);
+		res.status(500).json({ error: "Internal server error" });
+	}
+};
+
+export const getTrendingHashtags = async (req, res) => {
+	try {
+		const trending = await Hashtag.find().sort({ count: -1 }).limit(5);
+		res.status(200).json(trending || []);
+	} catch (error) {
+		console.error("Error in getTrendingHashtags controller: ", error);
+		res.status(500).json({ error: "Lỗi máy chủ khi lấy danh sách hashtag thịnh hành" });
+	}
+};
+
+
+
+export const getExplorePosts = async (req, res) => {
+    try {
+        const { category } = req.query;
+		let matchQuery = {
+			$and: [
+				{
+					$or: [
+						{ img: { $exists: true, $ne: "" } },
+						{ imgs: { $exists: true, $not: { $size: 0 } } },
+						{ video: { $exists: true, $ne: "" } }
+					]
+				},
+				PUBLIC_POST_FILTER,
+			],
+		};
+
+        if (category && category !== "all") {
+            matchQuery.$and.push({ hashtags: { $in: [category.toLowerCase()] } });
+        }
+
+		const posts = await Post.aggregate([
+			{ $match: matchQuery },
+            {
+                $addFields: {
+                    reactionCount: { $size: { $ifNull: ["$reactions", []] } },
+                    commentCount: { $size: { $ifNull: ["$comments", []] } }
+                }
+            },
+            { $sort: { reactionCount: -1, createdAt: -1 } },
+            { $limit: 24 },
+            {
+                $lookup: {
+                    from: "users",
+                    localField: "user",
+                    foreignField: "_id",
+                    as: "user",
+                },
+            },
+            { $unwind: "$user" },
+            {
+                $project: {
+                    "user.password": 0,
+                    "user.email": 0,
+                    "user.following": 0,
+                    "user.followers": 0,
+                }
+            }
+        ]);
+
+        res.status(200).json(posts);
+    } catch (error) {
+        console.error("Error in getExplorePosts controller: ", error);
+        res.status(500).json({ error: "Internal server error" });
+    }
 };

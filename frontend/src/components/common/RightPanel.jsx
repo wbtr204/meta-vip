@@ -1,82 +1,203 @@
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-
+import { motion } from "framer-motion";
 import useFollow from "../../hooks/useFollow";
-
-import RightPanelSkeleton from "../skeletons/RightPanelSkeleton";
 import LoadingSpinner from "./LoadingSpinner";
 
 const RightPanel = () => {
-	const { data: suggestedUsers, isLoading } = useQuery({
-		queryKey: ["suggestedUsers"],
-		queryFn: async () => {
-			try {
-				const res = await fetch("/api/users/suggested");
-				const data = await res.json();
-				if (!res.ok) {
-					throw new Error(data.error || "Something went wrong!");
-				}
-				return data;
-			} catch (error) {
-				throw new Error(error.message);
-			}
-		},
-	});
+    const { data: authUser } = useQuery({ queryKey: ["authUser"] });
+    
+    // FETCH: Suggested Users
+    const { data: suggestedUsers, isLoading: isSuggestionsLoading } = useQuery({
+        queryKey: ["suggestedUsers"],
+        queryFn: async () => {
+            const res = await fetch("/api/users/suggested");
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Failed to fetch suggestions");
+            return data;
+        },
+    });
 
-	const { follow, isPending } = useFollow();
+    // FETCH: Trending Hashtags
+    const { data: trendingHashtags, isLoading: isTrendingLoading } = useQuery({
+        queryKey: ["trendingHashtags"],
+        queryFn: async () => {
+            const res = await fetch("/api/posts/trending");
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Failed to fetch trends");
+            return data;
+        },
+    });
 
-	if (suggestedUsers?.length === 0) return <div className='md:w-64 w-0'></div>;
+    const { follow, isPending } = useFollow();
 
-	return (
-		<div className='hidden lg:block my-4 mx-2'>
-			<div className='bg-[#16181C] p-4 rounded-md sticky top-2'>
-				<p className='font-bold'>Who to follow</p>
-				<div className='flex flex-col gap-4'>
-					{/* item */}
-					{isLoading && (
-						<>
-							<RightPanelSkeleton />
-							<RightPanelSkeleton />
-							<RightPanelSkeleton />
-							<RightPanelSkeleton />
-						</>
-					)}
-					{!isLoading &&
-						suggestedUsers?.map((user) => (
-							<Link
-								to={`/profile/${user.username}`}
-								className='flex items-center justify-between gap-4'
-								key={user._id}
-							>
-								<div className='flex gap-2 items-center'>
-									<div className='avatar'>
-										<div className='w-8 rounded-full'>
-											<img src={user.profileImg || "/avatar-placeholder.png"} />
-										</div>
-									</div>
-									<div className='flex flex-col'>
-										<span className='font-semibold tracking-tight truncate w-28'>
-											{user.fullName}
-										</span>
-										<span className='text-sm text-slate-500'>@{user.username}</span>
-									</div>
-								</div>
-								<div>
-									<button
-										className='btn bg-white text-black hover:bg-white hover:opacity-90 rounded-full btn-sm'
-										onClick={(e) => {
-											e.preventDefault();
-											follow(user._id);
-										}}
-									>
-										{isPending ? <LoadingSpinner size='sm' /> : "Follow"}
-									</button>
-								</div>
-							</Link>
-						))}
-				</div>
-			</div>
-		</div>
-	);
+    // Animation Variants
+    const containerVariants = {
+        hidden: { opacity: 0 },
+        visible: {
+            opacity: 1,
+            transition: {
+                staggerChildren: 0.05
+            }
+        }
+    };
+
+    const itemVariants = {
+        hidden: { opacity: 0, y: 10 },
+        visible: { opacity: 1, y: 0 }
+    };
+
+    if (!authUser) return null;
+
+    return (
+        <aside className="hidden lg:flex flex-col w-[320px] sticky top-20 h-fit gap-6 transition-all duration-300">
+            {/* UNIFIED BENTO CONTAINER */}
+            <motion.div 
+                initial="hidden"
+                animate="visible"
+                variants={containerVariants}
+                className="bg-white dark:bg-slate-900/50 border border-slate-200/50 dark:border-slate-800/50 rounded-[24px] overflow-hidden shadow-sm"
+            >
+                {/* SECTION 1: TRENDING (THREADS STYLE) */}
+                <div className="p-5 pb-2">
+                    <div className="flex items-center justify-between mb-4 px-1">
+                        <h3 className="text-[13px] font-bold text-slate-900 dark:text-slate-100">Phân tích Xu hướng</h3>
+                        <span className="text-[9px] px-1.5 py-0.5 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-500 rounded-full font-bold uppercase tracking-tighter border border-indigo-100/50 dark:border-indigo-900/30">
+                            Data-Driven
+                        </span>
+                    </div>
+                    <div className="flex flex-col">
+                        {isTrendingLoading ? (
+                           <div className="space-y-4 px-1 pb-4">
+                               {[1, 2, 3].map(i => (
+                                   <div key={i} className="animate-pulse flex items-center gap-3">
+                                       <div className="w-4 h-4 bg-slate-100 dark:bg-slate-800 rounded" />
+                                       <div className="flex-1 space-y-2">
+                                           <div className="h-3 bg-slate-100 dark:bg-slate-800 rounded w-3/4" />
+                                           <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded w-1/2" />
+                                       </div>
+                                   </div>
+                               ))}
+                           </div>
+                        ) : (
+                            trendingHashtags?.slice(0, 5).map((tag, index) => (
+                                <motion.div key={tag._id} variants={itemVariants}>
+                                    <Link
+                                        to={`/search?q=${encodeURIComponent(tag.text)}`}
+                                        className="flex items-center gap-4 py-3 px-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-xl transition-all duration-200 group"
+                                    >
+                                        <span className="text-[14px] font-medium text-slate-400 tabular-nums w-4">
+                                            {index + 1}
+                                        </span>
+                                        <div className="flex flex-col min-w-0">
+                                            <span className="text-[14px] font-semibold text-slate-900 dark:text-slate-100 group-hover:text-indigo-500 transition-colors truncate">
+                                                #{tag.text}
+                                            </span>
+                                            <span className="text-[12px] text-slate-500 dark:text-slate-500">
+                                                {tag.count > 1000 ? `${(tag.count / 1000).toFixed(1)}k` : tag.count} bài đăng
+                                            </span>
+                                        </div>
+                                    </Link>
+                                    {index < 4 && <div className="mx-4 border-b border-slate-100/50 dark:border-slate-800/30" />}
+                                </motion.div>
+                            ))
+                        )}
+                        {!isTrendingLoading && trendingHashtags?.length === 0 && (
+                            <p className="text-xs text-slate-400 p-4 pt-0">Hiện chưa có xu hướng nào.</p>
+                        )}
+                    </div>
+                </div>
+
+                {/* SECTION 2: SUGGESTED FOLLOWS */}
+                <div className="p-5 pt-4 bg-slate-50/30 dark:bg-slate-800/10 border-t border-slate-200/50 dark:border-slate-800/50">
+                    <div className="flex items-center justify-between mb-4 px-1">
+                        <h3 className="text-[13px] font-bold text-slate-900 dark:text-slate-100">Gợi ý cho bạn</h3>
+                        <Link to="/explore" className="text-[12px] font-semibold text-indigo-500 hover:text-indigo-600 transition-colors">
+                            Xem tất cả
+                        </Link>
+                    </div>
+                    
+                    <div className="flex flex-col gap-4">
+                        {isSuggestionsLoading ? (
+                            <div className="space-y-4 px-1">
+                                {[1, 2].map(i => (
+                                    <div key={i} className="animate-pulse flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-9 h-9 bg-slate-100 dark:bg-slate-800 rounded-full" />
+                                            <div className="space-y-2">
+                                                <div className="h-3 bg-slate-100 dark:bg-slate-800 rounded w-20" />
+                                                <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded w-12" />
+                                            </div>
+                                        </div>
+                                        <div className="w-16 h-7 bg-slate-100 dark:bg-slate-800 rounded-full" />
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            suggestedUsers?.map((user) => (
+                                <motion.div 
+                                    key={user._id} 
+                                    variants={itemVariants}
+                                    className="flex items-center justify-between group"
+                                >
+                                    <div className="flex items-center gap-3 overflow-hidden">
+                                        <Link to={`/profile/${user.username}`} className="shrink-0">
+                                            <div className="h-9 w-9 rounded-full overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm transition-transform active:scale-95">
+                                                <img 
+                                                    className="w-full h-full object-cover" 
+                                                    src={user.profileImg || "/avatar-placeholder.png"} 
+                                                    alt={user.fullName} 
+                                                    loading="lazy"
+                                                />
+                                            </div>
+                                        </Link>
+                                        <div className="flex flex-col overflow-hidden leading-tight">
+                                            <Link 
+                                                to={`/profile/${user.username}`} 
+                                                className="text-[13px] font-bold text-slate-900 dark:text-slate-100 hover:underline decoration-1 underline-offset-2 truncate"
+                                            >
+                                                {user.fullName}
+                                            </Link>
+                                            <span className="text-[12px] text-slate-500 truncate lowercase">@{user.username}</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <button
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            follow(user._id);
+                                        }}
+                                        disabled={isPending}
+                                        className={`px-4 py-1.5 rounded-full text-[12px] font-bold transition-all ml-2 whitespace-nowrap border
+                                            ${user.followRequests?.includes(authUser?._id)
+                                                ? "bg-slate-100 dark:bg-slate-800 border-transparent text-slate-500 cursor-default"
+                                                : "bg-white dark:bg-transparent border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 active:scale-95 shadow-sm"
+                                            }`}
+                                    >
+                                        {isPending ? <LoadingSpinner size="sm" /> : (
+                                            user.followRequests?.includes(authUser?._id) ? "Chờ" : 
+                                            user.isPrivate ? "Yêu cầu" : "Theo dõi"
+                                        )}
+                                    </button>
+                                </motion.div>
+                            ))
+                        )}
+                        {!isSuggestionsLoading && suggestedUsers?.length === 0 && (
+                            <p className="text-xs text-slate-400 p-1">Không có gợi ý mới.</p>
+                        )}
+                    </div>
+                </div>
+            </motion.div>
+            
+            {/* FOOTER COHESION */}
+            <footer className="flex flex-wrap gap-x-4 gap-y-1 px-4 text-slate-400">
+                <a href="#" className="text-[11px] hover:underline">Điều khoản</a>
+                <a href="#" className="text-[11px] hover:underline">Quyền riêng tư</a>
+                <a href="#" className="text-[11px] hover:underline">Cookies</a>
+                <span className="text-[11px]">@2026 Trương Quân Bảo</span>
+            </footer>
+        </aside>
+    );
 };
+
 export default RightPanel;

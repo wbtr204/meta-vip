@@ -25,16 +25,24 @@ const userSchema = new mongoose.Schema(
 			{
 				type: mongoose.Schema.Types.ObjectId,
 				ref: "User",
-				default: [],
 			},
 		],
 		following: [
 			{
 				type: mongoose.Schema.Types.ObjectId,
 				ref: "User",
-				default: [],
 			},
 		],
+		followRequests: [
+			{
+				type: mongoose.Schema.Types.ObjectId,
+				ref: "User",
+			},
+		],
+		isPrivate: {
+			type: Boolean,
+			default: false,
+		},
 		profileImg: {
 			type: String,
 			default: "",
@@ -56,12 +64,54 @@ const userSchema = new mongoose.Schema(
 			{
 				type: mongoose.Schema.Types.ObjectId,
 				ref: "Post",
-				default: [],
 			},
 		],
+		bookmarks: [
+			{
+				type: mongoose.Schema.Types.ObjectId,
+				ref: "Post",
+			},
+		],
+		role: {
+			type: String,
+			enum: ["user", "admin", "moderator"],
+			default: "user",
+		},
+		isBanned: {
+			type: Boolean,
+			default: false,
+		},
+		normalizedFullName: {
+			type: String,
+			default: "",
+		},
+		department: {
+			type: String,
+			default: "CNTT",
+		},
+		interests: {
+			type: [String],
+			default: [],
+		},
 	},
 	{ timestamps: true }
 );
+
+userSchema.index({ username: 1 });
+userSchema.index({ email: 1 });
+userSchema.index({ normalizedFullName: 1 }); // Đánh index trường đã normalize để tìm kiếm siêu tốc
+
+userSchema.pre("save", function (next) {
+	if (this.isModified("fullName")) {
+		// Kỹ thuật Normalization: Loại bỏ dấu tiếng Việt, chuyển về lowercase tĩnh
+		this.normalizedFullName = this.fullName
+			.normalize("NFD")
+			.replace(/[\u0300-\u036f]/g, "") // Xóa các dấu
+			.replace(/đ/g, "d").replace(/Đ/g, "D") // Xử lý chữ Đ
+			.toLowerCase();
+	}
+	next();
+});
 
 const User = mongoose.model("User", userSchema);
 
